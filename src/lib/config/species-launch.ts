@@ -6,7 +6,7 @@ import type { Species, LaunchId } from '../types.js';
  * with a "wrong location for species" reason.
  */
 export const speciesLaunchCompat: Record<LaunchId, Species[]> = {
-  trinidad: ['rockfish', 'lingcod', 'salmon', 'surfperch', 'pacific-halibut', 'albacore-tuna'],
+  trinidad: ['rockfish', 'lingcod', 'salmon', 'surfperch', 'pacific-halibut', 'albacore-tuna', 'dungeness-crab'],
   'big-lagoon': ['cutthroat'],
   'stone-lagoon': ['cutthroat'],
   'mad-river-slough': ['surfperch', 'california-halibut', 'dungeness-crab'],

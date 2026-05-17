@@ -66,8 +66,8 @@ describe('speciesLaunchCompat', () => {
   it('dungeness-crab at humboldt-bay-interior → compatible', () => {
     expect(isSpeciesLaunchCompatible('dungeness-crab', 'humboldt-bay-interior')).toBe(true);
   });
-  it('dungeness-crab at trinidad → incompatible (hoop-net bay/slough only)', () => {
-    expect(isSpeciesLaunchCompatible('dungeness-crab', 'trinidad')).toBe(false);
+  it('dungeness-crab at trinidad → compatible (hoop net at the kelp edge near the harbor)', () => {
+    expect(isSpeciesLaunchCompatible('dungeness-crab', 'trinidad')).toBe(true);
   });
 
   it('albacore-tuna at trinidad → compatible', () => {

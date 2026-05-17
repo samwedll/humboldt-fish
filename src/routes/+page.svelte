@@ -111,12 +111,14 @@
 </svelte:head>
 
 <main class="mx-auto max-w-2xl p-3">
-  <header class="sticky top-0 z-10 -mx-3 mb-3 flex flex-wrap items-center gap-2 bg-white/95 px-3 py-2 backdrop-blur border-b border-neutral-200">
-    <div class="flex gap-1 rounded-full bg-neutral-100 p-1 text-sm">
+  <header class="sticky top-0 z-10 -mx-3 mb-3 flex items-center gap-2 bg-white/95 px-3 py-2 backdrop-blur border-b border-neutral-200">
+    <div
+      class="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full bg-neutral-100 p-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {#each validSpecies as s}
         <button
           type="button"
-          class={`px-3 py-1 rounded-full ${species === s ? 'bg-white shadow font-semibold' : 'text-neutral-600'}`}
+          class={`shrink-0 whitespace-nowrap px-3 py-1 rounded-full ${species === s ? 'bg-white shadow font-semibold' : 'text-neutral-600'}`}
           onclick={() => setSpecies(s)}
         >
           {SPECIES_LABEL[s]}
@@ -124,7 +126,7 @@
       {/each}
     </div>
     <select
-      class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs text-neutral-700"
+      class="shrink-0 rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs text-neutral-700"
       value={launch}
       onchange={(e) => setLaunch((e.currentTarget as HTMLSelectElement).value as LaunchId)}
     >
@@ -134,7 +136,7 @@
     </select>
     <button
       type="button"
-      class="ml-auto rounded-full bg-neutral-100 px-3 py-1 text-sm"
+      class="shrink-0 rounded-full bg-neutral-100 px-3 py-1 text-sm"
       onclick={refresh}
       disabled={refreshing}
     >
