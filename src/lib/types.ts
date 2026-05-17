@@ -1,0 +1,147 @@
+export type Species =
+  | 'rockfish'
+  | 'lingcod'
+  | 'salmon'
+  | 'surfperch'
+  | 'cutthroat'
+  | 'california-halibut'
+  | 'dungeness-crab'
+  | 'pacific-halibut'
+  | 'albacore-tuna';
+export type LaunchId =
+  | 'trinidad'
+  | 'big-lagoon'
+  | 'stone-lagoon'
+  | 'mad-river-slough'
+  | 'humboldt-bay-interior';
+export type VerdictLabel = 'GO' | 'CONDITIONAL' | 'NO-GO' | 'INCOMPLETE';
+export type LayerStatus = 'pass' | 'warn' | 'fail' | 'incomplete';
+export type CheckStatus = 'pass' | 'warn' | 'fail' | 'unknown';
+export type LayerName = 'legal' | 'safety' | 'quality' | 'logistics';
+
+export interface LayerResult {
+  status: LayerStatus;
+  summary: string;
+}
+
+export interface Check {
+  layer: LayerName;
+  name: string;
+  value: string;
+  threshold: string;
+  status: CheckStatus;
+  note?: string;
+}
+
+export interface Recommendations {
+  window?: string;
+  gear?: string[];
+  bailout?: string;
+}
+
+export interface Verdict {
+  date: string;
+  verdict: VerdictLabel;
+  reason: string;
+  layers: Record<LayerName, LayerResult>;
+  checks: Check[];
+  recommendations: Recommendations;
+}
+
+export interface SourceFreshness {
+  ndbc46244?: string;
+  ndbc46022?: string;
+  nwsZone?: string;
+  nwsPoint?: string;
+  tides?: string;
+  suntimes?: string;
+}
+
+export interface VerdictResponse {
+  generatedAt: string;
+  freshness: SourceFreshness;
+  days: Verdict[];
+}
+
+export interface FetchedData {
+  ndbc46244: NdbcObservation | null;
+  ndbc46022: NdbcObservation | null;
+  nwsZone: NwsZoneForecast | null;
+  nwsPoint: NwsPointForecast | null;
+  tides: TidePredictions | null;
+  suntimes: SunTimes;
+}
+
+export interface NdbcObservation {
+  observedAt: string;
+  windKt: number | null;
+  gustKt: number | null;
+  windDirDeg: number | null;
+  waveHtFt: number | null;
+  dominantPeriodSec: number | null;
+  meanWaveDirDeg: number | null;
+  waterTempF: number | null;
+}
+
+export interface NwsZonePeriod {
+  number: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  detailedForecast: string;
+}
+
+export interface NwsZoneForecast {
+  zone: string;
+  updated: string;
+  periods: NwsZonePeriod[];
+}
+
+export interface NwsPointPeriod {
+  number: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isDaytime: boolean;
+  temperature: number;
+  windSpeed: string;
+  windDirection: string;
+  shortForecast: string;
+  detailedForecast: string;
+}
+
+export interface NwsPointForecast {
+  updated: string;
+  periods: NwsPointPeriod[];
+}
+
+export interface TideEvent {
+  time: string;
+  height: number;
+  type: 'H' | 'L';
+}
+
+export interface TidePredictions {
+  station: string;
+  events: TideEvent[];
+}
+
+export interface SunTimes {
+  byDate: Record<string, {
+    civilDawn: string;
+    sunrise: string;
+    sunset: string;
+    civilDusk: string;
+  }>;
+}
+
+const LAYER_STATUSES: LayerStatus[] = ['pass', 'warn', 'fail', 'incomplete'];
+const VERDICT_LABELS: VerdictLabel[] = ['GO', 'CONDITIONAL', 'NO-GO', 'INCOMPLETE'];
+
+export function isLayerStatus(x: unknown): x is LayerStatus {
+  return typeof x === 'string' && (LAYER_STATUSES as string[]).includes(x);
+}
+
+export function isVerdictLabel(x: unknown): x is VerdictLabel {
+  return typeof x === 'string' && (VERDICT_LABELS as string[]).includes(x);
+}

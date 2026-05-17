@@ -1,0 +1,112 @@
+{
+    "@context": [
+        "https://geojson.org/geojson-ld/geojson-context.jsonld",
+        {
+            "@version": "1.1",
+            "wx": "https://api.weather.gov/ontology#",
+            "s": "https://schema.org/",
+            "geo": "http://www.opengis.net/ont/geosparql#",
+            "unit": "http://codes.wmo.int/common/unit/",
+            "@vocab": "https://api.weather.gov/ontology#",
+            "geometry": {
+                "@id": "s:GeoCoordinates",
+                "@type": "geo:wktLiteral"
+            },
+            "city": "s:addressLocality",
+            "state": "s:addressRegion",
+            "distance": {
+                "@id": "s:Distance",
+                "@type": "s:QuantitativeValue"
+            },
+            "bearing": {
+                "@type": "s:QuantitativeValue"
+            },
+            "value": {
+                "@id": "s:value"
+            },
+            "unitCode": {
+                "@id": "s:unitCode",
+                "@type": "@id"
+            },
+            "forecastOffice": {
+                "@type": "@id"
+            },
+            "forecastGridData": {
+                "@type": "@id"
+            },
+            "publicZone": {
+                "@type": "@id"
+            },
+            "county": {
+                "@type": "@id"
+            }
+        }
+    ],
+    "id": "https://api.weather.gov/points/41.0586,-124.1431",
+    "type": "Feature",
+    "geometry": {
+        "type": "Point",
+        "coordinates": [
+            -124.1431,
+            41.0586
+        ]
+    },
+    "properties": {
+        "@id": "https://api.weather.gov/points/41.0586,-124.1431",
+        "@type": "wx:Point",
+        "cwa": "EKA",
+        "type": "land",
+        "forecastOffice": "https://api.weather.gov/offices/EKA",
+        "gridId": "EKA",
+        "gridX": 66,
+        "gridY": 119,
+        "forecast": "https://api.weather.gov/gridpoints/EKA/66,119/forecast",
+        "forecastHourly": "https://api.weather.gov/gridpoints/EKA/66,119/forecast/hourly",
+        "forecastGridData": "https://api.weather.gov/gridpoints/EKA/66,119",
+        "observationStations": "https://api.weather.gov/gridpoints/EKA/66,119/stations",
+        "relativeLocation": {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -124.143255,
+                    41.057708
+                ]
+            },
+            "properties": {
+                "city": "Trinidad",
+                "state": "CA",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 100.03381695616
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 7
+                }
+            }
+        },
+        "forecastZone": "https://api.weather.gov/zones/forecast/CAZ103",
+        "county": "https://api.weather.gov/zones/county/CAC023",
+        "fireWeatherZone": "https://api.weather.gov/zones/fire/CAZ404",
+        "timeZone": "America/Los_Angeles",
+        "radarStation": "KBHX",
+        "astronomicalData": {
+            "sunrise": "2026-05-17T05:54:43-07:00",
+            "sunset": "2026-05-17T20:31:16-07:00",
+            "transit": "2026-05-17T13:12:59-07:00",
+            "civilTwilightBegin": "2026-05-17T05:24:43-07:00",
+            "civilTwilightEnd": "2026-05-17T21:01:15-07:00",
+            "nauticalTwilightBegin": "2026-05-17T04:45:23-07:00",
+            "nauticalTwilightEnd": "2026-05-17T21:40:36-07:00",
+            "astronomicalTwilightBegin": "2026-05-17T04:01:09-07:00",
+            "astronomicalTwilightEnd": "2026-05-17T22:24:50-07:00"
+        },
+        "nwr": {
+            "transmitter": "WZ2550",
+            "sameCode": "006023",
+            "areaBroadcast": "https://api.weather.gov/radio/WZ2550/broadcast",
+            "pointBroadcast": "https://api.weather.gov/points/41.0586,-124.1431/radio"
+        }
+    }
+}
