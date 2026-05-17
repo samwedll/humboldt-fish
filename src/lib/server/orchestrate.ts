@@ -60,7 +60,7 @@ export async function orchestrateVerdict(input: OrchestrateInput): Promise<Verdi
   };
 
   const verdicts: Verdict[] = dates.map((date) =>
-    computeVerdict({ date, species, launch, data })
+    computeVerdict({ date, today, species, launch, data })
   );
 
   return {

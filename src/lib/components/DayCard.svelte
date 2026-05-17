@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Verdict, Species } from '$lib/types.js';
+  import type { Verdict, Species, DataSources } from '$lib/types.js';
   import VerdictPill from './VerdictPill.svelte';
   import LayerTable from './LayerTable.svelte';
   import { regs } from '$lib/config/regs.js';
@@ -25,6 +25,28 @@
   let hotline = $derived(regs.salmon.hotlinePhone);
 
   function toggle() { expanded = !expanded; }
+
+  // Format a "Verdict from: ..." chip listing live sources, flagging missing ones.
+  // Sources marked 'not-applicable' (e.g., buoy on a future day) are omitted entirely.
+  function formatSources(ds: DataSources | undefined): { label: string; hasMissing: boolean } | null {
+    if (!ds) return null;
+    const live: string[] = [];
+    const missing: string[] = [];
+    const entries: [keyof DataSources, string][] = [
+      ['buoy', 'buoy'],
+      ['nwsZone', 'NWS forecast'],
+      ['nwsPoint', 'point forecast']
+    ];
+    for (const [key, label] of entries) {
+      if (ds[key] === 'live') live.push(label);
+      else if (ds[key] === 'missing') missing.push(label);
+    }
+    if (live.length === 0 && missing.length === 0) return null;
+    let label = live.length > 0 ? `Verdict from: ${live.join(' + ')}` : 'No live sources';
+    if (missing.length > 0) label += ` · missing: ${missing.join(' + ')}`;
+    return { label, hasMissing: missing.length > 0 };
+  }
+  let sourceChip = $derived(formatSources(verdict.dataSources));
 </script>
 
 <article
@@ -44,6 +66,15 @@
     </span>
     <span class="text-sm text-neutral-600 truncate">{verdict.reason}</span>
   </button>
+
+  {#if sourceChip}
+    <div
+      class="mt-1 text-xs {sourceChip.hasMissing ? 'text-amber-700' : 'text-neutral-500'}"
+      data-testid="source-chip"
+    >
+      {sourceChip.label}
+    </div>
+  {/if}
 
   {#if lowConfidence}
     <div class="mt-1 text-xs text-neutral-500 italic">Forecast confidence drops past day 5.</div>

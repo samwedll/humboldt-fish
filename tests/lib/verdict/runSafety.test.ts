@@ -404,3 +404,104 @@ describe('runSafety — point-forecast wind (location-aware)', () => {
     expect(windCheck?.note).toMatch(/point forecast/i);
   });
 });
+
+describe('runSafety — Trinidad-today live-buoy gate', () => {
+  it('Trinidad + today + buoy missing → INCOMPLETE (the May-17-style silent failure guard)', () => {
+    // Forecast says calm via NWS, but the live buoy is dark. We must NOT silently
+    // produce a GO from forecast alone — the whole project exists because that
+    // failure mode is dangerous.
+    const r = runSafety({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: null,
+        ndbc46022: null,
+        nwsZone: {
+          zone: 'PZZ450',
+          updated: '2026-05-17T16:03:00Z',
+          periods: [{
+            number: 1, name: 'REST OF TODAY', startTime: '', endTime: '',
+            detailedForecast: 'NW wind 5 to 10 kt. Seas 3 ft. Wave Detail: NW 3 ft at 13 seconds.'
+          }]
+        },
+        nwsPoint: null,
+        tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(r.result.status).toBe('incomplete');
+    expect(r.result.summary).toMatch(/buoy 46244 unavailable/i);
+    expect(r.checks.find((c) => c.name === 'Live buoy')).toBeDefined();
+  });
+
+  it('Trinidad + future day + buoy missing + NWS prose present → falls through (gate is today-only)', () => {
+    const r = runSafety({
+      date: '2026-05-18',
+      today: '2026-05-17',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: null,
+        ndbc46022: null,
+        nwsZone: {
+          zone: 'PZZ450',
+          updated: '2026-05-17T16:03:00Z',
+          periods: [
+            { number: 1, name: 'REST OF TODAY', startTime: '', endTime: '', detailedForecast: '' },
+            { number: 2, name: 'TONIGHT', startTime: '', endTime: '', detailedForecast: '' },
+            { number: 3, name: 'MON', startTime: '', endTime: '', detailedForecast: 'NW wind 5 to 10 kt. Seas 3 ft. Wave Detail: NW 3 ft at 13 seconds.' }
+          ]
+        },
+        nwsPoint: null,
+        tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(r.result.status).toBe('pass');
+  });
+
+  it('Big Lagoon + today + buoy missing + point present → still produces verdict (gate is open-ocean-only)', () => {
+    const r = runSafety({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      launch: 'big-lagoon',
+      data: {
+        ndbc46244: null,
+        ndbc46022: null,
+        nwsZone: null,
+        nwsPoint: {
+          updated: '2026-05-17T15:00:00Z',
+          periods: [{
+            number: 1, name: 'Today',
+            startTime: '2026-05-17T09:00:00-07:00', endTime: '2026-05-17T18:00:00-07:00',
+            isDaytime: true, temperature: 60,
+            windSpeed: '5 to 10 mph', windDirection: 'NW',
+            shortForecast: '', detailedForecast: ''
+          }]
+        },
+        tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(r.result.status).toBe('pass');
+  });
+
+  it('Trinidad + today + buoy present → uses buoy normally (gate not tripped)', () => {
+    const r = runSafety({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: {
+          observedAt: '2026-05-17T14:00:00Z',
+          windKt: 6, gustKt: 8, windDirDeg: 270,
+          waveHtFt: 3.5, dominantPeriodSec: 12, meanWaveDirDeg: 275,
+          waterTempF: 52
+        },
+        ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(r.result.status).toBe('pass');
+  });
+});

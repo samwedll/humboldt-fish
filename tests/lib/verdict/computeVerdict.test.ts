@@ -236,3 +236,100 @@ describe('computeVerdict', () => {
     expect(v.layers.legal.status).toBe('fail');
   });
 });
+
+describe('computeVerdict — dataSources field', () => {
+  it('Trinidad + today with buoy + point present → buoy and point live, zone missing', () => {
+    const v = computeVerdict({
+      date: '2026-05-18',
+      today: '2026-05-18',
+      species: 'rockfish',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: {
+          observedAt: '2026-05-18T14:00:00Z',
+          windKt: 6, gustKt: 8, windDirDeg: 270,
+          waveHtFt: 3.5, dominantPeriodSec: 12, meanWaveDirDeg: 275,
+          waterTempF: 52
+        },
+        ndbc46022: null,
+        nwsZone: null,
+        nwsPoint: {
+          updated: '2026-05-18T15:00:00Z',
+          periods: [{
+            number: 1, name: 'Today',
+            startTime: '2026-05-18T09:00:00-07:00', endTime: '2026-05-18T18:00:00-07:00',
+            isDaytime: true, temperature: 60,
+            windSpeed: '5 to 10 mph', windDirection: 'NW',
+            shortForecast: '', detailedForecast: ''
+          }]
+        },
+        tides: { station: '9418767', events: [] },
+        suntimes: {
+          byDate: { '2026-05-18': { civilDawn: '2026-05-18T12:30:00Z', sunrise: '2026-05-18T13:05:00Z', sunset: '2026-05-19T03:30:00Z', civilDusk: '2026-05-19T04:00:00Z' } }
+        }
+      }
+    });
+    expect(v.dataSources.buoy).toBe('live');
+    expect(v.dataSources.nwsPoint).toBe('live');
+    expect(v.dataSources.nwsZone).toBe('missing');
+  });
+
+  it('Trinidad future day → buoy not-applicable (forward-looking, no buoy expected)', () => {
+    const v = computeVerdict({
+      date: '2026-05-20',
+      today: '2026-05-17',
+      species: 'rockfish',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: {
+          observedAt: '2026-05-17T14:00:00Z',
+          windKt: 6, gustKt: 8, windDirDeg: 270,
+          waveHtFt: 3.5, dominantPeriodSec: 12, meanWaveDirDeg: 275,
+          waterTempF: 52
+        },
+        ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(v.dataSources.buoy).toBe('not-applicable');
+  });
+
+  it('Big Lagoon (not open-ocean) → buoy not-applicable even on today', () => {
+    const v = computeVerdict({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      species: 'cutthroat',
+      launch: 'big-lagoon',
+      data: {
+        ndbc46244: null, ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(v.dataSources.buoy).toBe('not-applicable');
+  });
+
+  it('Trinidad + today + buoy missing → INCOMPLETE verdict from the live-buoy gate', () => {
+    const v = computeVerdict({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      species: 'rockfish',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: null, ndbc46022: null,
+        nwsZone: {
+          zone: 'PZZ450',
+          updated: '2026-05-17T16:00:00Z',
+          periods: [{
+            number: 1, name: 'REST OF TODAY', startTime: '', endTime: '',
+            detailedForecast: 'NW wind 5 to 10 kt. Seas 3 ft. Wave Detail: NW 3 ft at 13 seconds.'
+          }]
+        },
+        nwsPoint: null, tides: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(v.verdict).toBe('INCOMPLETE');
+    expect(v.dataSources.buoy).toBe('missing');
+    expect(v.reason).toMatch(/buoy 46244 unavailable/i);
+  });
+});

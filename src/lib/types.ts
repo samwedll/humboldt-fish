@@ -39,6 +39,14 @@ export interface Recommendations {
   bailout?: string;
 }
 
+export type SourcePresence = 'live' | 'missing' | 'not-applicable';
+
+export interface DataSources {
+  buoy: SourcePresence;        // NDBC 46244 — applicable only to "today" verdicts
+  nwsZone: SourcePresence;     // NWS CWF text product for PZZ450
+  nwsPoint: SourcePresence;    // NWS point forecast for the launch's coordinates
+}
+
 export interface Verdict {
   date: string;
   verdict: VerdictLabel;
@@ -46,6 +54,7 @@ export interface Verdict {
   layers: Record<LayerName, LayerResult>;
   checks: Check[];
   recommendations: Recommendations;
+  dataSources: DataSources;
 }
 
 export interface SourceFreshness {

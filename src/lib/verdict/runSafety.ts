@@ -13,7 +13,9 @@ import { parseMarineProse, deriveDateForPeriod, parsePointWind, findPointPeriodF
 import { getLaunch, type LaunchProfile } from '../config/launches.js';
 
 export interface SafetyInput {
-  date: string; // YYYY-MM-DD Pacific
+  date: string;     // YYYY-MM-DD Pacific — the verdict date
+  today?: string;   // YYYY-MM-DD Pacific — today, used to gate "live buoy required" rule.
+                    // Defaults to a sentinel that never matches a real date so the gate is opt-in.
   launch: LaunchId;
   data: FetchedData;
 }
@@ -94,11 +96,35 @@ function pointWindChecks(
   ];
 }
 
-export function runSafety({ date, launch, data }: SafetyInput): SafetyOutput {
+export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyInput): SafetyOutput {
   const profile = getLaunch(launch);
   const buoy = data.ndbc46244;
   const buoyMatchesDate = buoy && ndbcDatePacific(buoy.observedAt) === date;
   const pointChecks = pointWindChecks(data, date, profile);
+
+  // Hard rule: open-ocean today's verdict REQUIRES live buoy. The whole point
+  // of the project is catching the case where forecast says calm but the live
+  // buoy reports dangerous conditions. If the buoy is dark, we can't verify —
+  // do NOT silently fall back to forecast for today at Trinidad.
+  const isToday = date === today;
+  if (isToday && profile.openOcean && profile.requiresSwellCheck && !buoy) {
+    return {
+      result: {
+        status: 'incomplete',
+        summary: `Live buoy 46244 unavailable — cannot verify open-ocean conditions for ${profile.label} today`
+      },
+      checks: [
+        {
+          layer: 'safety',
+          name: 'Live buoy',
+          value: 'unavailable',
+          threshold: 'required for today\'s open-ocean verdict',
+          status: 'unknown',
+          note: 'Verify directly via NDBC station 46244 or the USCG bar advisory before launching.'
+        }
+      ]
+    };
+  }
 
   if (buoyMatchesDate && buoy) {
     return runSafetyFromBuoy(buoy, profile, pointChecks);
