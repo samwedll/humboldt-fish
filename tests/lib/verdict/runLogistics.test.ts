@@ -436,4 +436,24 @@ describe('annotateWindowWithTide', () => {
     expect(a.peakType).toBe('ebb');
     expect(a.peakTimeLocal).toBe('04:14 PT');
   });
+
+  it('window with no events inside: defensive peakTimeLocal, no out-of-window time leakage', () => {
+    // Synthetic fixture with events only OUTSIDE the requested window range.
+    // Window 06:00–08:00. Events: ebb-peak at 04:14 (before), slack at 08:30 (just after).
+    const synth: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T04:14', type: 'ebb', velocityKt: -3.34, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T08:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const a = annotateWindowWithTide('2026-05-18T06:00', '2026-05-18T08:00', synth);
+    // peakSpeedKt = 0 (no event inside), peakType = 'slack', peakTimeLocal anchored to windowStart.
+    expect(a.peakSpeedKt).toBe(0);
+    expect(a.peakType).toBe('slack');
+    expect(a.peakTimeLocal).toBe('06:00 PT');
+    // Description must NOT reference out-of-window times like "04:14".
+    expect(a.description).not.toMatch(/04:14/);
+  });
 });

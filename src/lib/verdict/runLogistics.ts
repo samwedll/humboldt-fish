@@ -248,9 +248,13 @@ export function annotateWindowWithTide(
         undefined
       );
   }
-  const peakSpeedKt = peakEvent ? Math.abs(peakEvent.velocityKt) : 0;
-  const peakType: 'ebb' | 'flood' | 'slack' = peakEvent ? peakEvent.type : 'slack';
-  const peakTimeLocal = peakEvent ? ptIsoToHhmmLabel(peakEvent.time) : ptIsoToHhmmLabel(windowStart);
+  const peakInsideWindow =
+    peakEvent !== undefined &&
+    peakEvent.time >= windowStart &&
+    peakEvent.time <= windowEnd;
+  const peakSpeedKt = peakInsideWindow ? Math.abs(peakEvent!.velocityKt) : 0;
+  const peakType: 'ebb' | 'flood' | 'slack' = peakInsideWindow ? peakEvent!.type : 'slack';
+  const peakTimeLocal = peakInsideWindow ? ptIsoToHhmmLabel(peakEvent!.time) : ptIsoToHhmmLabel(windowStart);
 
   // Description.
   let description: string;
@@ -264,10 +268,12 @@ export function annotateWindowWithTide(
     } else {
       description = `slack ${slack.time.slice(11, 16)} mid-window`;
     }
-  } else if (phase === 'flood') {
+  } else if (phase === 'flood' && peakInsideWindow) {
     description = `flood building, peaks ${peakSpeedKt.toFixed(1)} kt at ${peakTimeLocal.replace(' PT', '')}`;
-  } else if (phase === 'ebb') {
+  } else if (phase === 'ebb' && peakInsideWindow) {
     description = `ebb (peaks ${peakSpeedKt.toFixed(1)} kt at ${peakTimeLocal.replace(' PT', '')})`;
+  } else if (phase === 'flood' || phase === 'ebb') {
+    description = `${phase}-adjacent — no peak inside window`;
   } else {
     description = `slack`;
   }
