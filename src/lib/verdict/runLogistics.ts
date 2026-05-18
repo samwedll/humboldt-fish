@@ -298,6 +298,11 @@ function ptIsoToMinutes(iso: string): number {
 function minutesToPtIso(totalMinutes: number, referenceDate: string): string {
   const refMin = ptIsoToMinutes(`${referenceDate}T00:00`);
   const dayMin = totalMinutes - refMin;
+  if (dayMin < 0 || dayMin >= 1440) {
+    throw new Error(
+      `minutesToPtIso: totalMinutes ${totalMinutes} falls outside referenceDate ${referenceDate} (dayMin=${dayMin}). Launch windows are expected to stay within a single day.`
+    );
+  }
   const hh = Math.floor(dayMin / 60);
   const mm = dayMin % 60;
   return `${referenceDate}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;

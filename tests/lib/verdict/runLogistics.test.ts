@@ -497,4 +497,22 @@ describe('clampReturnByForEbb', () => {
     const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', fixture);
     expect(r.suppressed).toBe(true);
   });
+
+  it('launch on descending side of prior ebb still hostile: suppressed', () => {
+    // Ebb peak at 03:30 (-2.5 kt), slack after at 06:30. Window 04:00–08:00.
+    // At 04:00 (descending side, 30 min past peak):
+    //   |v|(04:00) = 2.5 * (06:30 − 04:00)/(06:30 − 03:30) = 2.5 * 150/180 = 2.08 kt.
+    // Above 1.5 kt threshold → suppressed.
+    const synth: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T01:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T03:30', type: 'ebb', velocityKt: -2.5, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T06:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', synth);
+    expect(r.suppressed).toBe(true);
+  });
 });
