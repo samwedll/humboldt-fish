@@ -89,4 +89,17 @@ describe('regulations', () => {
       regs['albacore-tuna'].requirements.some((r) => r.toLowerCase().includes('no bag limit'))
     ).toBe(true);
   });
+
+  it('bluegill open 2026-05-18 (year-round inland)', () => {
+    expect(isSpeciesOpen('bluegill', '2026-05-18').open).toBe(true);
+  });
+  it('largemouth-bass open 2026-12-15 (year-round inland)', () => {
+    expect(isSpeciesOpen('largemouth-bass', '2026-12-15').open).toBe(true);
+  });
+  it('largemouth-bass regs cite the 12-inch minimum', () => {
+    expect(regs['largemouth-bass'].requirements.some((r) => /12 inches/.test(r))).toBe(true);
+  });
+  it('rainbow-trout regs reference the fish-planting schedule', () => {
+    expect(regs['rainbow-trout'].requirements.some((r) => /planting/.test(r))).toBe(true);
+  });
 });

@@ -142,6 +142,36 @@ export const regs: Record<Species, SpeciesRegs> = {
       'Real-world viability is June–October when 60°F+ water pushes inshore'
     ],
     requiresHotlineVerify: false
+  },
+  bluegill: {
+    label: 'Bluegill (CA Inland)',
+    seasonWindows: [{ start: '2026-01-01', end: '2026-12-31' }],
+    requirements: [
+      'CDFW Sport Fishing License (16+)',
+      'No bag limit on bluegill/sunfish in most CA inland waters',
+      'No size limit'
+    ],
+    requiresHotlineVerify: false
+  },
+  'largemouth-bass': {
+    label: 'Largemouth Bass',
+    seasonWindows: [{ start: '2026-01-01', end: '2026-12-31' }],
+    requirements: [
+      'CDFW Sport Fishing License (16+)',
+      'Daily bag: 5 fish total (largemouth/smallmouth/spotted combined)',
+      'Minimum size: 12 inches total length'
+    ],
+    requiresHotlineVerify: false
+  },
+  'rainbow-trout': {
+    label: 'Rainbow Trout (stocker / inland)',
+    seasonWindows: [{ start: '2026-01-01', end: '2026-12-31' }],
+    requirements: [
+      'CDFW Sport Fishing License (16+)',
+      'Daily bag: 5 trout (statewide inland)',
+      'Check CDFW fish-planting schedule before each trip — fishing is best 1-2 days after a plant'
+    ],
+    requiresHotlineVerify: false
   }
 };
 
