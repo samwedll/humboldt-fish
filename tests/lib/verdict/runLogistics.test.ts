@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import {
   runLogistics,
   annotateWindowWithTide,
-  clampReturnByForEbb
+  clampReturnByForEbb,
+  buildMorningSlackWindow
 } from '../../../src/lib/verdict/runLogistics.js';
 import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
 import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
@@ -514,5 +515,44 @@ describe('clampReturnByForEbb', () => {
     };
     const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', synth);
     expect(r.suppressed).toBe(true);
+  });
+});
+
+describe('buildMorningSlackWindow', () => {
+  const civilDawn = new Date('2026-05-18T12:30:00Z'); // 05:30 PT
+
+  it('returns a window when a slack falls between 04:00 and 11:00 local', () => {
+    // 2026-05-18: slack 08:12.
+    const w = buildMorningSlackWindow(currentsFixture, '2026-05-18', civilDawn);
+    expect(w).not.toBeNull();
+    expect(w!.label).toMatch(/slack/i);
+    expect(w!.launchAt).toBe('07:42 PT'); // 08:12 − 30 min
+    expect(w!.returnBy).toBe('11:42 PT');  // 07:42 + 4h
+    expect(w!.checkInBy).toBe('12:42 PT'); // returnBy + 1h
+  });
+
+  it('returns null when proposed launch is before civil dawn', () => {
+    const synthetic: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T05:45', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    // launchAt would be 05:15 — civilDawn is 05:30. Reject.
+    const w = buildMorningSlackWindow(synthetic, '2026-05-18', civilDawn);
+    expect(w).toBeNull();
+  });
+
+  it('returns null when no slack in 04:00–11:00 local', () => {
+    const synthetic: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T13:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const w = buildMorningSlackWindow(synthetic, '2026-05-18', civilDawn);
+    expect(w).toBeNull();
   });
 });

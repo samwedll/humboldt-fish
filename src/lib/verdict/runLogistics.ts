@@ -10,7 +10,7 @@ import type {
   TidalCurrentEvent
 } from '../types.js';
 import { getLaunch } from '../config/launches.js';
-import { formatPacificTime } from '../format.js';
+import { formatPacificTime, toPacificLocalISO } from '../format.js';
 
 export interface LogisticsInput {
   species: Species;
@@ -399,6 +399,52 @@ function interpEbbMagnitude(
   } else {
     return (peakMag * (slackAfterMin - tMin)) / (slackAfterMin - peakMin);
   }
+}
+
+/**
+ * Build a slack-anchored morning launch window. Symmetric counterpart to the
+ * existing afternoon-slack block in runLogistics. Looks for a slack in
+ * 04:00–11:00 Pacific local on `date`. Skips if the proposed launchAt would
+ * be before civilDawn.
+ */
+export function buildMorningSlackWindow(
+  currents: TidalCurrents,
+  date: string,
+  civilDawn: Date
+): LaunchWindow | null {
+  const morningSlack = currents.events.find(
+    (e) =>
+      e.type === 'slack' &&
+      e.time.startsWith(date) &&
+      hourOf(e.time) >= 4 &&
+      hourOf(e.time) <= 11
+  );
+  if (!morningSlack) return null;
+
+  const launchAtIso = shiftPtIso(morningSlack.time, -30);
+  const civilDawnIso = toPacificLocalISO(civilDawn);
+  if (launchAtIso < civilDawnIso) return null;
+
+  const launchAt = `${launchAtIso.slice(11, 16)} PT`;
+  const returnByIso = shiftPtIso(launchAtIso, 4 * 60);
+  const returnBy = `${returnByIso.slice(11, 16)} PT`;
+  const checkInByIso = shiftPtIso(returnByIso, 60);
+  const checkInBy = `${checkInByIso.slice(11, 16)} PT`;
+
+  return {
+    label: `Around ${morningSlack.time.slice(11, 16)} slack`,
+    launchAt,
+    returnBy,
+    checkInBy,
+    rationale:
+      'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
+  };
+}
+
+/** Shift a "YYYY-MM-DDTHH:MM" PT-local string by N minutes (positive or negative). */
+function shiftPtIso(iso: string, deltaMinutes: number): string {
+  const totalMin = ptIsoToMinutes(iso) + deltaMinutes;
+  return minutesToPtIso(totalMin, iso.slice(0, 10));
 }
 
 const SPECIES_RISK: Partial<Record<Species, string>> = {
