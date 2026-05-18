@@ -619,9 +619,17 @@ export function runLogistics({
     }
   }
 
-  // Afternoon slack window for tide-aware launches when currents data is available.
-  // Slack times are already in Pacific local; do not parse through Date().
-  if (launchProfile.currentStation && data.tidalCurrents) {
+  // ============================================================
+  // Slack-anchored windows + tide annotation + clamp
+  // ============================================================
+
+  // 1. Build morning + afternoon slack windows when available.
+  if (launchProfile.currentStation && data.tidalCurrents && sun) {
+    const civilDawn = new Date(sun.civilDawn);
+    const morningSlack = buildMorningSlackWindow(data.tidalCurrents, date, civilDawn);
+    if (morningSlack) windows.push(morningSlack);
+
+    // Afternoon slack window (existing behavior, kept).
     const slacks = data.tidalCurrents.events.filter(
       (e) => e.type === 'slack' && e.time.startsWith(date)
     );
@@ -631,13 +639,57 @@ export function runLogistics({
     });
     if (afternoonSlack) {
       windows.push({
-        label: `Around ${fmtTime(afternoonSlack.time)} slack`,
+        label: `Around ${afternoonSlack.time.slice(11, 16)} slack`,
         launchAt: shiftPacificTime(afternoonSlack.time, -30),
         returnBy: shiftPacificTime(afternoonSlack.time, -30 + 4 * 60),
         checkInBy: shiftPacificTime(afternoonSlack.time, -30 + 5 * 60),
         rationale: 'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
       });
     }
+  }
+
+  // 2. Annotate dawn/dusk windows + clamp returnBy + set warnings.
+  if (launchProfile.currentStation && data.tidalCurrents) {
+    const annotated: LaunchWindow[] = [];
+    for (const w of windows) {
+      const isSlackAnchored = /slack/i.test(w.label);
+
+      // Reconstruct the window's [launchStart, launchEnd] as Pacific-local ISO.
+      const launchIso = `${date}T${w.launchAt.slice(0, 5)}`;
+      const returnIso = `${date}T${w.returnBy.slice(0, 5)}`;
+
+      // Annotate against the pre-clamp range.
+      const tide = annotateWindowWithTide(launchIso, returnIso, data.tidalCurrents);
+      const annotatedW: LaunchWindow = { ...w, tide };
+
+      if (isSlackAnchored) {
+        // No clamp, no warning for slack-anchored.
+        annotated.push(annotatedW);
+        continue;
+      }
+
+      // Pre-clamp warning check: drive off peakType, not phase.
+      if (tide.peakType === 'ebb' && tide.peakSpeedKt > EBB_WARN_KT) {
+        annotatedW.warning = `ebb peaks ${tide.peakSpeedKt.toFixed(1)} kt at ${tide.peakTimeLocal.replace(' PT', '')} — return through building current`;
+      } else if (tide.peakType === 'flood' && tide.peakSpeedKt > FLOOD_WARN_KT) {
+        annotatedW.warning = `flood peaks ${tide.peakSpeedKt.toFixed(1)} kt at ${tide.peakTimeLocal.replace(' PT', '')} — control trade-off on assist`;
+      }
+
+      // Clamp returnBy + suppress check.
+      const clamp = clampReturnByForEbb(launchIso, returnIso, data.tidalCurrents);
+      if (clamp.suppressed) continue;
+      if (clamp.newEnd !== returnIso) {
+        const newReturnHhmm = `${clamp.newEnd.slice(11, 16)} PT`;
+        annotatedW.returnBy = newReturnHhmm;
+        const newCheckMinutes = ptIsoToMinutes(clamp.newEnd) + 60;
+        const newCheckIso = minutesToPtIso(newCheckMinutes, date);
+        annotatedW.checkInBy = `${newCheckIso.slice(11, 16)} PT`;
+      }
+
+      annotated.push(annotatedW);
+    }
+    windows.length = 0;
+    windows.push(...annotated);
   }
 
   // Legacy single-window string for any consumer that hasn't migrated.
