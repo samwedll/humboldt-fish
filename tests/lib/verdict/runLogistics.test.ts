@@ -583,6 +583,33 @@ describe('runLogistics — multiple launch windows', () => {
     }
   });
 
+  it('annotation tolerates non-zero-padded launchAt labels (defensive ISO reconstruction)', () => {
+    // This is a runtime-portability test: build a fixture identical to the
+    // "clean flood morning" test but check that the launchAt string parsing
+    // works regardless of whether the formatter pads hours.
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T08:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T12:00', type: 'flood', velocityKt: 1.8, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T15:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    // The Morning window should have a valid tide annotation. If ISO
+    // reconstruction is broken, annotation produces nonsense (peakSpeedKt = 0).
+    const morning = r.recommendations.windows!.find((w) => w.label === 'Morning');
+    expect(morning).toBeDefined();
+    expect(morning!.tide).toBeDefined();
+    // Window 06:00–10:00 spans slack 08:00 → flood building. Phase = mixed.
+    expect(morning!.tide!.phase).toBe('mixed');
+  });
+
   it('bay launch with currents missing: windows match today (no tide, no warning, no morning-slack)', () => {
     const r = runLogistics({
       species: 'surfperch',

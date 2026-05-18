@@ -191,6 +191,17 @@ function ptIsoToHhmmLabel(iso: string): string {
 }
 
 /**
+ * Defensively normalize a "HH:MM PT" (or "H:MM PT") label to a zero-padded
+ * "HH:MM" string for ISO reconstruction. Guards against runtimes where
+ * Intl.DateTimeFormat may not zero-pad hours under en-US.
+ */
+function hhmmFromPtLabel(label: string): string {
+  const stripped = label.replace(/\s*PT\s*$/, '').trim();
+  const [hh, mm] = stripped.split(':');
+  return `${hh.padStart(2, '0')}:${(mm ?? '00').padStart(2, '0')}`;
+}
+
+/**
  * Annotate a launch window with its dominant tide phase, peak current, and a
  * short prose summary suitable for a UI chip.
  *
@@ -655,8 +666,8 @@ export function runLogistics({
       const isSlackAnchored = /slack/i.test(w.label);
 
       // Reconstruct the window's [launchStart, launchEnd] as Pacific-local ISO.
-      const launchIso = `${date}T${w.launchAt.slice(0, 5)}`;
-      const returnIso = `${date}T${w.returnBy.slice(0, 5)}`;
+      const launchIso = `${date}T${hhmmFromPtLabel(w.launchAt)}`;
+      const returnIso = `${date}T${hhmmFromPtLabel(w.returnBy)}`;
 
       // Annotate against the pre-clamp range.
       const tide = annotateWindowWithTide(launchIso, returnIso, data.tidalCurrents);
@@ -682,8 +693,14 @@ export function runLogistics({
         const newReturnHhmm = `${clamp.newEnd.slice(11, 16)} PT`;
         annotatedW.returnBy = newReturnHhmm;
         const newCheckMinutes = ptIsoToMinutes(clamp.newEnd) + 60;
-        const newCheckIso = minutesToPtIso(newCheckMinutes, date);
-        annotatedW.checkInBy = `${newCheckIso.slice(11, 16)} PT`;
+        const dayStartMin = ptIsoToMinutes(`${date}T00:00`);
+        if (newCheckMinutes - dayStartMin < 1440) {
+          const newCheckIso = minutesToPtIso(newCheckMinutes, date);
+          annotatedW.checkInBy = `${newCheckIso.slice(11, 16)} PT`;
+        } else {
+          // Would cross midnight — cap at 23:59 PT rather than throwing.
+          annotatedW.checkInBy = '23:59 PT';
+        }
       }
 
       annotated.push(annotatedW);
