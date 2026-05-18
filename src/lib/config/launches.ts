@@ -21,6 +21,12 @@ export interface LaunchProfile {
   nwsZone: string;
   ndbcBuoyPrimary?: string;
   ndbcBuoySecondary?: string;
+  /**
+   * NOAA tidal-currents station ID. Set for launches where current speed/direction
+   * materially affects launch/return timing (slough + bay interior).
+   * Leave undefined for open-ocean Trinidad and the lagoons.
+   */
+  currentStation?: string;
   notes: string;
 }
 
@@ -89,6 +95,7 @@ export const launches: Record<LaunchId, LaunchProfile> = {
     soloInYearOne: true,
     coordinates: { lat: 40.9275, lon: -124.1119 },
     tideStation: '9418767',
+    currentStation: 'HUB0203',
     nwsZone: 'PZZ450',
     notes:
       'Tidal but sheltered. Mud bottom — ride the flood in, ebb out. Plan return on flood.'
@@ -106,6 +113,7 @@ export const launches: Record<LaunchId, LaunchProfile> = {
     soloInYearOne: true,
     coordinates: { lat: 40.8089, lon: -124.1644 },
     tideStation: '9418767',
+    currentStation: 'HUB0203',
     nwsZone: 'PZZ450',
     notes:
       'Inside bay (Samoa, Fields, Woodley, Eureka Public ramps). Stay clear of entrance channel per user rule. Tide currents up to 3-5 kt; plan return on flood.'

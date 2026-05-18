@@ -6,6 +6,7 @@ import { fetchNdbc } from '$lib/fetchers/ndbc.js';
 import { fetchNwsZone } from '$lib/fetchers/nws-zone.js';
 import { fetchNwsPoint } from '$lib/fetchers/nws-point.js';
 import { fetchTides, toApiDate } from '$lib/fetchers/tides.js';
+import { fetchCurrents } from '$lib/fetchers/currents.js';
 import { computeSunTimes } from '$lib/fetchers/suntimes.js';
 import { cachedFetch } from '$lib/fetchers/cache.js';
 import { getLaunch } from '$lib/config/launches.js';
@@ -91,6 +92,16 @@ export const GET: RequestHandler = async ({ url, platform }) => {
       const url2 = sources.tides.url(sources.tides.station, toApiDate(today), toApiDate(end));
       const wrap = wrapWithCache(url2, sources.tides.ttlSec, { headers: { 'User-Agent': USER_AGENT } });
       return fetchTides(url2, sources.tides.station, wrap as unknown as typeof fetch);
+    },
+    tidalCurrents: async () => {
+      // Skip the fetch entirely if the launch has no current station.
+      if (!launchProfile.currentStation) return null;
+      const today = todayInPacific();
+      const end = addDays(today, 7);
+      const station = launchProfile.currentStation;
+      const url2 = sources.currents.url(station, toApiDate(today), toApiDate(end));
+      const wrap = wrapWithCache(url2, sources.currents.ttlSec, { headers: { 'User-Agent': USER_AGENT } });
+      return fetchCurrents(url2, station, wrap as unknown as typeof fetch);
     },
     suntimes: (dates: string[]) =>
       computeSunTimes(dates, launchProfile.coordinates.lat, launchProfile.coordinates.lon)

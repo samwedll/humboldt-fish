@@ -4,6 +4,7 @@ import type {
   NwsZoneForecast,
   NwsPointForecast,
   TidePredictions,
+  TidalCurrents,
   SunTimes,
   Species,
   LaunchId,
@@ -19,6 +20,12 @@ export interface Fetchers {
   nwsZone: () => Promise<FetchResult<NwsZoneForecast>>;
   nwsPoint: () => Promise<FetchResult<NwsPointForecast>>;
   tides: () => Promise<FetchResult<TidePredictions>>;
+  /**
+   * Tidal currents are only fetched when the launch profile has a
+   * `currentStation` set. The fetcher resolves to null when the launch doesn't
+   * need it, so we don't waste a network request on Trinidad / lagoons.
+   */
+  tidalCurrents: () => Promise<FetchResult<TidalCurrents> | null>;
   suntimes: (dates: string[]) => SunTimes;
 }
 
@@ -41,12 +48,13 @@ export async function orchestrateVerdict(input: OrchestrateInput): Promise<Verdi
   const dates: string[] = [];
   for (let i = 0; i < days; i++) dates.push(addDays(today, i));
 
-  const [ndbc1, ndbc2, zone, point, tides] = await Promise.all([
+  const [ndbc1, ndbc2, zone, point, tides, currents] = await Promise.all([
     fetchers.ndbc46244(),
     fetchers.ndbc46022(),
     fetchers.nwsZone(),
     fetchers.nwsPoint(),
-    fetchers.tides()
+    fetchers.tides(),
+    fetchers.tidalCurrents()
   ]);
   const suntimes = fetchers.suntimes(dates);
 
@@ -56,7 +64,7 @@ export async function orchestrateVerdict(input: OrchestrateInput): Promise<Verdi
     nwsZone: zone.ok ? zone.data! : null,
     nwsPoint: point.ok ? point.data! : null,
     tides: tides.ok ? tides.data! : null,
-    tidalCurrents: null,
+    tidalCurrents: currents && currents.ok ? currents.data! : null,
     suntimes
   };
 
@@ -72,6 +80,7 @@ export async function orchestrateVerdict(input: OrchestrateInput): Promise<Verdi
       nwsZone: zone.ok ? zone.fetchedAt : undefined,
       nwsPoint: point.ok ? point.fetchedAt : undefined,
       tides: tides.ok ? tides.fetchedAt : undefined,
+      tidalCurrents: currents && currents.ok ? currents.fetchedAt : undefined,
       suntimes: new Date().toISOString()
     },
     days: verdicts
