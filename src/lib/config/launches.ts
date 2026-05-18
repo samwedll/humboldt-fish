@@ -117,6 +117,23 @@ export const launches: Record<LaunchId, LaunchProfile> = {
     nwsZone: 'PZZ450',
     notes:
       'Inside bay (Samoa, Fields, Woodley, Eureka Public ramps). Stay clear of entrance channel per user rule. Tide currents up to 3-5 kt; plan return on flood.'
+  },
+  'freshwater-lagoon': {
+    id: 'freshwater-lagoon',
+    label: 'Freshwater Lagoon',
+    openOcean: false,
+    requiresSwellCheck: false,
+    requiresPeriodCheck: false,
+    requiresAlignmentCheck: false,
+    requiresWindCheck: true,
+    requiresTideAwareness: false,
+    requiresBarCheck: false,
+    soloInYearOne: true,
+    coordinates: { lat: 41.1850, lon: -124.1014 },
+    tideStation: '9418723',
+    nwsZone: 'PZZ450',
+    notes:
+      'Freshwater coastal lagoon in Humboldt Lagoons State Park. Closed water, no tide, no current. Easy paved ramp on the north side. Wind is the only weather concern. Stocked rainbow trout (CDFW schedule), bluegill, largemouth bass.'
   }
 };
 

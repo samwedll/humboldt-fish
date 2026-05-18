@@ -19,16 +19,23 @@ describe('launches', () => {
     expect(t.ndbcBuoySecondary).toBe('46022');
   });
 
-  it('all five launches are exposed in v1.1', () => {
+  it('all six launches are exposed in v1.3', () => {
     expect(Object.keys(launches).sort()).toEqual(
       [
         'trinidad',
         'big-lagoon',
         'stone-lagoon',
         'mad-river-slough',
-        'humboldt-bay-interior'
+        'humboldt-bay-interior',
+        'freshwater-lagoon'
       ].sort()
     );
+    expect(launches.trinidad.label).toBe('Trinidad Harbor');
+    expect(launches['big-lagoon'].label).toBe('Big Lagoon');
+    expect(launches['stone-lagoon'].label).toBe('Stone Lagoon');
+    expect(launches['mad-river-slough'].label).toBe('Mad River Slough');
+    expect(launches['humboldt-bay-interior'].label).toBe('Humboldt Bay (interior)');
+    expect(launches['freshwater-lagoon'].label).toBe('Freshwater Lagoon');
   });
 
   it('big-lagoon profile: protected water, no swell/period/alignment checks', () => {
@@ -66,5 +73,27 @@ describe('launches', () => {
     expect(l.requiresTideAwareness).toBe(true);
     expect(l.tideStation).toBe('9418767');
     expect(l.notes.toLowerCase()).toContain('entrance');
+  });
+
+  it('freshwater-lagoon: closed water, wind-only, no swell/tide/current', () => {
+    const l = getLaunch('freshwater-lagoon');
+    expect(l.openOcean).toBe(false);
+    expect(l.requiresSwellCheck).toBe(false);
+    expect(l.requiresPeriodCheck).toBe(false);
+    expect(l.requiresAlignmentCheck).toBe(false);
+    expect(l.requiresTideAwareness).toBe(false);
+    expect(l.requiresBarCheck).toBe(false);
+  });
+
+  it('freshwater-lagoon: wind check still required (paddling on a lake)', () => {
+    expect(launches['freshwater-lagoon'].requiresWindCheck).toBe(true);
+  });
+
+  it('freshwater-lagoon: no current station (closed freshwater lake)', () => {
+    expect(launches['freshwater-lagoon'].currentStation).toBeUndefined();
+  });
+
+  it('freshwater-lagoon: no NDBC buoy applies', () => {
+    expect(launches['freshwater-lagoon'].ndbcBuoyPrimary).toBeUndefined();
   });
 });
