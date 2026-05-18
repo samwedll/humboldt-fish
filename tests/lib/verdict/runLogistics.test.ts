@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { runLogistics } from '../../../src/lib/verdict/runLogistics.js';
-import type { FetchedData } from '../../../src/lib/types.js';
+import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
+import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
+
+const currentsFixture: TidalCurrents = parseCurrents(
+  JSON.parse(readFileSync(resolve('tests/fixtures/currents-HUB0203.json'), 'utf-8')),
+  'HUB0203'
+);
+
+function dataWithCurrents(): FetchedData {
+  return { ...data(), tidalCurrents: currentsFixture };
+}
 
 function data(): FetchedData {
   return {
@@ -119,6 +131,71 @@ describe('runLogistics', () => {
       data: data()
     });
     expect(r.checks.find((c) => c.name === 'Tide planning')).toBeDefined();
+  });
+
+  it('mad-river-slough with currents data: tidal-currents check has morning slack and flood/ebb peaks', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-17',
+      launch: 'mad-river-slough',
+      data: dataWithCurrents()
+    });
+    const tc = r.checks.find((c) => c.name === 'Tidal currents');
+    expect(tc).toBeDefined();
+    expect(tc!.status).toBe('pass');
+    // Fixture morning slack on 2026-05-17 is 07:28.
+    expect(tc!.value).toMatch(/Morning slack 07:28/);
+    expect(tc!.value).toMatch(/flood peaks/);
+    expect(tc!.value).toMatch(/ebb peaks/);
+    expect(tc!.value).toMatch(/kt/);
+    expect(tc!.note).toMatch(/last 90 min of flood/i);
+  });
+
+  it('humboldt-bay-interior with currents data: tidal-currents check present', () => {
+    const r = runLogistics({
+      species: 'california-halibut',
+      date: '2026-05-17',
+      launch: 'humboldt-bay-interior',
+      data: dataWithCurrents()
+    });
+    const tc = r.checks.find((c) => c.name === 'Tidal currents');
+    expect(tc).toBeDefined();
+    expect(tc!.status).toBe('pass');
+  });
+
+  it('trinidad: no tidal-currents check (launch has no currentStation)', () => {
+    const r = runLogistics({
+      species: 'rockfish',
+      date: '2026-05-17',
+      launch: 'trinidad',
+      data: dataWithCurrents()
+    });
+    expect(r.checks.find((c) => c.name === 'Tidal currents')).toBeUndefined();
+  });
+
+  it('mad-river-slough with currents missing: tidal-currents check shows unknown status, not failure', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-17',
+      launch: 'mad-river-slough',
+      data: data()
+    });
+    const tc = r.checks.find((c) => c.name === 'Tidal currents');
+    expect(tc).toBeDefined();
+    expect(tc!.status).toBe('unknown');
+    expect(tc!.value).toMatch(/data unavailable/i);
+    // Logistics layer should still pass overall — currents are informational.
+    expect(r.result.status).toBe('pass');
+  });
+
+  it('big-lagoon: no tidal-currents check even when currents data is present (lagoon has no currentStation)', () => {
+    const r = runLogistics({
+      species: 'cutthroat',
+      date: '2026-05-17',
+      launch: 'big-lagoon',
+      data: dataWithCurrents()
+    });
+    expect(r.checks.find((c) => c.name === 'Tidal currents')).toBeUndefined();
   });
 
   it('pacific-halibut at trinidad: gear + Trip risk + Pacific halibut quota checks', () => {

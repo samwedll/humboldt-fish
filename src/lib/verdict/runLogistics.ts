@@ -4,7 +4,9 @@ import type {
   Check,
   Species,
   LaunchId,
-  Recommendations
+  Recommendations,
+  TidalCurrents,
+  TidalCurrentEvent
 } from '../types.js';
 import { getLaunch } from '../config/launches.js';
 
@@ -76,6 +78,70 @@ const SPECIES_GEAR: Record<Species, string[]> = {
   ]
 };
 
+/**
+ * Pull the events that fall on the given local date (YYYY-MM-DD). Times in the
+ * payload are NOAA-local (LST/LDT), so a plain string-prefix match is correct.
+ */
+function eventsOnDate(currents: TidalCurrents, date: string): TidalCurrentEvent[] {
+  return currents.events.filter((e) => e.time.startsWith(date));
+}
+
+/** "YYYY-MM-DDTHH:MM" → fractional hour (e.g. "07:28" → 7.466). */
+function hourOf(timeStr: string): number {
+  const t = timeStr.slice(11, 16);
+  const [hh, mm] = t.split(':').map(Number);
+  return hh + mm / 60;
+}
+
+function fmtTime(timeStr: string): string {
+  return timeStr.slice(11, 16);
+}
+
+interface CurrentsSummary {
+  morningSlack?: TidalCurrentEvent;
+  floodPeak?: TidalCurrentEvent;
+  ebbPeak?: TidalCurrentEvent;
+}
+
+/**
+ * Find:
+ *  - the morning slack (a "slack" event between 04:00 and 11:00 local on `date`)
+ *  - the next flood peak after that slack (max positive Velocity_Major in the flood block)
+ *  - the next ebb peak after the following slack (max-magnitude negative velocity in the ebb block)
+ *
+ * If no morning slack exists, leave all three undefined — the caller will fall back to
+ * an "unknown" status.
+ */
+export function summarizeCurrents(currents: TidalCurrents, date: string): CurrentsSummary {
+  const sameDay = eventsOnDate(currents, date);
+  const morningSlack = sameDay.find(
+    (e) => e.type === 'slack' && hourOf(e.time) >= 4 && hourOf(e.time) <= 11
+  );
+  if (!morningSlack) return {};
+
+  // Walk forward through the full event list (which may include events on
+  // following days) starting at the morning-slack index to pick the next
+  // flood-peak event, then the next ebb-peak event after the slack that
+  // separates them.
+  const idx = currents.events.indexOf(morningSlack);
+  const tail = currents.events.slice(idx + 1);
+
+  let floodPeak: TidalCurrentEvent | undefined;
+  let ebbPeak: TidalCurrentEvent | undefined;
+  for (const e of tail) {
+    if (!floodPeak && e.type === 'flood') {
+      floodPeak = e;
+      continue;
+    }
+    if (floodPeak && !ebbPeak && e.type === 'ebb') {
+      ebbPeak = e;
+      break;
+    }
+  }
+
+  return { morningSlack, floodPeak, ebbPeak };
+}
+
 const SPECIES_RISK: Partial<Record<Species, string>> = {
   'pacific-halibut':
     'Deep-water trip (3-5 mi offshore at Trinidad). Long forecast horizon needed — wind/swell must hold for 6-8 hours. Not solo year 1.',
@@ -130,6 +196,57 @@ export function runLogistics({
       status: 'pass',
       note: launchProfile.notes
     });
+
+    // Tidal-currents check: only run when the launch profile has a current
+    // station mapped to it. The data may still be missing — in that case we
+    // surface an "unknown" check (informational, not blocking).
+    if (launchProfile.currentStation) {
+      if (data.tidalCurrents) {
+        const { morningSlack, floodPeak, ebbPeak } = summarizeCurrents(
+          data.tidalCurrents,
+          date
+        );
+        if (morningSlack) {
+          const parts: string[] = [`Morning slack ${fmtTime(morningSlack.time)}`];
+          if (floodPeak) {
+            parts.push(
+              `flood peaks ${fmtTime(floodPeak.time)} at ${Math.abs(floodPeak.velocityKt).toFixed(1)} kt`
+            );
+          }
+          if (ebbPeak) {
+            parts.push(
+              `ebb peaks ${fmtTime(ebbPeak.time)} at ${Math.abs(ebbPeak.velocityKt).toFixed(1)} kt`
+            );
+          }
+          checks.push({
+            layer: 'logistics',
+            name: 'Tidal currents',
+            value: parts.join('; '),
+            threshold: '—',
+            status: 'pass',
+            note: 'Launch on the last 90 min of flood or at slack. Return before the ebb builds past 1.5 kt.'
+          });
+        } else {
+          checks.push({
+            layer: 'logistics',
+            name: 'Tidal currents',
+            value: 'no morning slack on this date',
+            threshold: '—',
+            status: 'unknown',
+            note: 'NOAA returned data but no slack between 04:00–11:00 local.'
+          });
+        }
+      } else {
+        checks.push({
+          layer: 'logistics',
+          name: 'Tidal currents',
+          value: 'data unavailable',
+          threshold: '—',
+          status: 'unknown',
+          note: 'NOAA tidal-currents fetch failed; using tide-cycle planning only.'
+        });
+      }
+    }
   }
 
   const risk = SPECIES_RISK[species];
