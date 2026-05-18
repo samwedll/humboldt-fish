@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   runLogistics,
-  annotateWindowWithTide
+  annotateWindowWithTide,
+  clampReturnByForEbb
 } from '../../../src/lib/verdict/runLogistics.js';
 import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
 import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
@@ -455,5 +456,45 @@ describe('annotateWindowWithTide', () => {
     expect(a.peakTimeLocal).toBe('06:00 PT');
     // Description must NOT reference out-of-window times like "04:14".
     expect(a.description).not.toMatch(/04:14/);
+  });
+});
+
+describe('clampReturnByForEbb', () => {
+  const fixture = currentsFixture;
+
+  it('no ebb above threshold inside or just after window: no clamp', () => {
+    const r = clampReturnByForEbb('2026-05-17T09:00', '2026-05-17T13:00', fixture);
+    expect(r.suppressed).toBe(false);
+    expect(r.newEnd).toBe('2026-05-17T13:00');
+  });
+
+  it('ebb-heavy afternoon: clamps before threshold crossing (≥ 2h trip remaining)', () => {
+    const synth: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T13:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T17:30', type: 'ebb', velocityKt: -1.8, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T20:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = clampReturnByForEbb('2026-05-18T13:30', '2026-05-18T17:30', synth);
+    expect(r.suppressed).toBe(false);
+    expect(r.newEnd).toBe('2026-05-18T16:30');
+  });
+
+  it('window collapses below 2h: suppressed', () => {
+    // 2026-05-21 fixture: slack 03:29 → ebb-peak 06:30 at -2.47 → slack 10:42.
+    // Window 04:00 → 08:00. Crossing 1.5 kt at ~05:19 building. Clamped end
+    // 05:04. Trip 04:00 → 05:04 = 1h4m. Below 2h → suppress.
+    const r = clampReturnByForEbb('2026-05-21T04:00', '2026-05-21T08:00', fixture);
+    expect(r.suppressed).toBe(true);
+  });
+
+  it('launch already in hostile ebb: suppressed', () => {
+    // 2026-05-18 ebb peak 04:14 at -3.34. Launch at 04:00 is mid-ebb (already
+    // above 1.5 kt). Suppress.
+    const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', fixture);
+    expect(r.suppressed).toBe(true);
   });
 });

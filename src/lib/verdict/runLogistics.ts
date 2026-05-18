@@ -281,6 +281,121 @@ export function annotateWindowWithTide(
   return { phase, peakSpeedKt, peakType, peakTimeLocal, description };
 }
 
+/**
+ * Convert "YYYY-MM-DDTHH:MM" Pacific-local string to integer minutes since
+ * an arbitrary epoch. We only diff within a single day, so a simple minute
+ * count from a fixed origin works without any timezone math.
+ */
+function ptIsoToMinutes(iso: string): number {
+  const [datePart, timePart] = iso.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm] = timePart.split(':').map(Number);
+  const daysSince2000 =
+    (y - 2000) * 365 + Math.floor((y - 2000) / 4) + (m - 1) * 31 + (d - 1);
+  return daysSince2000 * 1440 + hh * 60 + mm;
+}
+
+function minutesToPtIso(totalMinutes: number, referenceDate: string): string {
+  const refMin = ptIsoToMinutes(`${referenceDate}T00:00`);
+  const dayMin = totalMinutes - refMin;
+  const hh = Math.floor(dayMin / 60);
+  const mm = dayMin % 60;
+  return `${referenceDate}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/**
+ * Clamp returnBy so the trip ends before ebb builds past EBB_WARN_KT. Linear
+ * interpolation between the preceding slack and the ebb peak gives a defensible
+ * crossing-time estimate; subtract CLAMP_BUFFER_MIN for paddle-home margin.
+ *
+ * Returns:
+ *   - { suppressed: false, newEnd: <ISO> } if no clamp or clamp leaves ≥ MIN_TRIP_HOURS
+ *   - { suppressed: true } if the window is shorter than MIN_TRIP_HOURS post-clamp,
+ *     OR if launch is already in hostile ebb.
+ */
+export function clampReturnByForEbb(
+  windowStart: string,
+  windowEnd: string,
+  currents: TidalCurrents
+): { newEnd: string; suppressed: boolean } {
+  const events = currents.events;
+
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type !== 'ebb' || Math.abs(e.velocityKt) <= EBB_WARN_KT) continue;
+
+    if (e.time < windowStart) {
+      // Ebb peak before window start. Check if launch is on the descending
+      // side of this peak (still above threshold).
+      const prevSlack = events.slice(0, i).reverse().find((p) => p.type === 'slack');
+      const nextSlack = events.slice(i + 1).find((p) => p.type === 'slack');
+      if (!prevSlack || !nextSlack) continue;
+      if (windowStart >= prevSlack.time && windowStart <= nextSlack.time) {
+        const launchVel = interpEbbMagnitude(
+          windowStart,
+          prevSlack.time,
+          e.time,
+          nextSlack.time,
+          Math.abs(e.velocityKt)
+        );
+        if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
+      }
+      continue;
+    }
+
+    // e.time >= windowStart. Linear-interpolate the rising-ebb side.
+    const prevSlack = events.slice(0, i).reverse().find((p) => p.type === 'slack');
+    if (!prevSlack) continue;
+
+    const slackMin = ptIsoToMinutes(prevSlack.time);
+    const peakMin = ptIsoToMinutes(e.time);
+    const startMin = ptIsoToMinutes(windowStart);
+    const endMin = ptIsoToMinutes(windowEnd);
+
+    // Launch-time velocity (only if launch is already on the rising side).
+    if (startMin >= slackMin && startMin <= peakMin) {
+      const launchVel = (Math.abs(e.velocityKt) * (startMin - slackMin)) / (peakMin - slackMin);
+      if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
+    }
+
+    // Threshold-crossing time on the rising side.
+    let crossingMin: number | null = null;
+    if (startMin <= peakMin && endMin >= slackMin) {
+      const t = slackMin + ((peakMin - slackMin) * EBB_WARN_KT) / Math.abs(e.velocityKt);
+      if (t >= startMin && t <= endMin) crossingMin = t;
+    }
+
+    if (crossingMin === null) continue;
+
+    const clampedEndMin = crossingMin - CLAMP_BUFFER_MIN;
+    if (clampedEndMin <= startMin || (clampedEndMin - startMin) < MIN_TRIP_HOURS * 60) {
+      return { suppressed: true, newEnd: windowEnd };
+    }
+    const dateRef = windowStart.slice(0, 10);
+    return { newEnd: minutesToPtIso(clampedEndMin, dateRef), suppressed: false };
+  }
+
+  return { newEnd: windowEnd, suppressed: false };
+}
+
+function interpEbbMagnitude(
+  t: string,
+  slackBefore: string,
+  peak: string,
+  slackAfter: string,
+  peakMag: number
+): number {
+  const tMin = ptIsoToMinutes(t);
+  const slackBeforeMin = ptIsoToMinutes(slackBefore);
+  const peakMin = ptIsoToMinutes(peak);
+  const slackAfterMin = ptIsoToMinutes(slackAfter);
+  if (tMin <= peakMin) {
+    return (peakMag * (tMin - slackBeforeMin)) / (peakMin - slackBeforeMin);
+  } else {
+    return (peakMag * (slackAfterMin - tMin)) / (slackAfterMin - peakMin);
+  }
+}
+
 const SPECIES_RISK: Partial<Record<Species, string>> = {
   'pacific-halibut':
     'Deep-water trip (3-5 mi offshore at Trinidad). Long forecast horizon needed — wind/swell must hold for 6-8 hours. Not solo year 1.',
