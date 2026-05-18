@@ -75,6 +75,22 @@ const SPECIES_GEAR: Record<Species, string[]> = {
     'Ice on board — bleed and chill fish immediately',
     'GPS track + Marine VHF + EPIRB',
     'Verify water temp ≥ 60°F within paddle range before committing'
+  ],
+  bluegill: [
+    'Light spinning rod (4-6 lb test)',
+    'Small hooks size 8-12 + worms / mealworms / wax worms',
+    'Bobber rig or small jig (1/64-1/32 oz)'
+  ],
+  'largemouth-bass': [
+    'Medium-heavy spinning or baitcasting rod (10-15 lb test)',
+    'Soft plastic worms (Texas / drop-shot / weightless), spinnerbaits, crankbaits',
+    'Catch-and-release encouraged for larger fish'
+  ],
+  'rainbow-trout': [
+    'Light spinning rod (4-6 lb test)',
+    'PowerBait / salmon eggs / small spinners (Mepps, Roostertails)',
+    'Barbless hooks recommended for catch-and-release',
+    'Check CDFW fish-planting schedule — bite best 1-2 days after a plant'
   ]
 };
 

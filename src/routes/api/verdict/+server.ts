@@ -13,7 +13,8 @@ import { getLaunch } from '$lib/config/launches.js';
 
 const SPECIES = [
   'rockfish', 'lingcod', 'salmon', 'surfperch', 'cutthroat',
-  'california-halibut', 'dungeness-crab', 'pacific-halibut', 'albacore-tuna'
+  'california-halibut', 'dungeness-crab', 'pacific-halibut', 'albacore-tuna',
+  'bluegill', 'largemouth-bass', 'rainbow-trout'
 ] as const;
 type SpeciesId = (typeof SPECIES)[number];
 
@@ -22,7 +23,8 @@ const LAUNCHES = [
   'big-lagoon',
   'stone-lagoon',
   'mad-river-slough',
-  'humboldt-bay-interior'
+  'humboldt-bay-interior',
+  'freshwater-lagoon'
 ] as const;
 type LaunchIdParam = (typeof LAUNCHES)[number];
 

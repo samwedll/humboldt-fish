@@ -254,4 +254,54 @@ describe('runLogistics', () => {
     expect(r.recommendations.gear?.some((g) => g.toLowerCase().includes('hoop net'))).toBe(true);
     expect(r.recommendations.gear?.some((g) => g.toLowerCase().includes('domoic'))).toBe(true);
   });
+
+  it('bluegill at freshwater-lagoon: gear mentions bobber/worms', () => {
+    const r = runLogistics({
+      species: 'bluegill',
+      date: '2026-05-18',
+      launch: 'freshwater-lagoon',
+      data: data()
+    });
+    expect(
+      r.recommendations.gear?.some(
+        (g) => /bobber/i.test(g) || /worms/i.test(g)
+      )
+    ).toBe(true);
+  });
+
+  it('largemouth-bass at freshwater-lagoon: gear mentions Texas/plastic', () => {
+    const r = runLogistics({
+      species: 'largemouth-bass',
+      date: '2026-05-18',
+      launch: 'freshwater-lagoon',
+      data: data()
+    });
+    expect(
+      r.recommendations.gear?.some(
+        (g) => /Texas/i.test(g) || /plastic/i.test(g)
+      )
+    ).toBe(true);
+  });
+
+  it('rainbow-trout at freshwater-lagoon: gear mentions PowerBait + planting', () => {
+    const r = runLogistics({
+      species: 'rainbow-trout',
+      date: '2026-05-18',
+      launch: 'freshwater-lagoon',
+      data: data()
+    });
+    expect(r.recommendations.gear?.some((g) => /PowerBait/i.test(g))).toBe(true);
+    expect(r.recommendations.gear?.some((g) => /planting/i.test(g))).toBe(true);
+  });
+
+  it('freshwater-lagoon: no tide-planning check, no tidal-currents check', () => {
+    const r = runLogistics({
+      species: 'rainbow-trout',
+      date: '2026-05-18',
+      launch: 'freshwater-lagoon',
+      data: data()
+    });
+    expect(r.checks.find((c) => c.name === 'Tide planning')).toBeUndefined();
+    expect(r.checks.find((c) => c.name === 'Tidal currents')).toBeUndefined();
+  });
 });

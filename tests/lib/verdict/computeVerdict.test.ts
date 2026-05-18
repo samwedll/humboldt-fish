@@ -390,4 +390,41 @@ describe('computeVerdict — dataSources field', () => {
     });
     expect(v.dataSources.currents).toBe('not-applicable');
   });
+
+  it('freshwater-lagoon: buoy and currents both not-applicable (closed-water lake)', () => {
+    const v = computeVerdict({
+      date: '2026-06-15',
+      today: '2026-06-15',
+      species: 'rainbow-trout',
+      launch: 'freshwater-lagoon',
+      data: {
+        ndbc46244: null, ndbc46022: null, nwsZone: null,
+        nwsPoint: {
+          updated: '2026-06-15T15:00:00Z',
+          periods: [{
+            number: 1, name: 'Today',
+            startTime: '2026-06-15T09:00:00-07:00',
+            endTime: '2026-06-15T18:00:00-07:00',
+            isDaytime: true, temperature: 65,
+            windSpeed: '5 to 10 mph', windDirection: 'NW',
+            shortForecast: '', detailedForecast: ''
+          }]
+        },
+        tides: null,
+        tidalCurrents: null,
+        suntimes: {
+          byDate: {
+            '2026-06-15': {
+              civilDawn: '2026-06-15T12:30:00Z',
+              sunrise: '2026-06-15T13:05:00Z',
+              sunset: '2026-06-16T03:30:00Z',
+              civilDusk: '2026-06-16T04:00:00Z'
+            }
+          }
+        }
+      }
+    });
+    expect(v.dataSources.buoy).toBe('not-applicable');
+    expect(v.dataSources.currents).toBe('not-applicable');
+  });
 });
