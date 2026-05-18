@@ -139,7 +139,7 @@ export function computeVerdict(input: ComputeInput): Verdict {
     };
   }
 
-  const quality = runQuality({ species, date, data });
+  const quality = runQuality({ species, launch, date, data });
   layers.quality = quality.result;
   checks.push(...quality.checks);
 
