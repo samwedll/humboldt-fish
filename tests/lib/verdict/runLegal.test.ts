@@ -55,10 +55,20 @@ describe('runLegal', () => {
     expect(r.result.status).toBe('pass');
   });
 
-  it('cutthroat at big-lagoon in January → fail (closed season)', () => {
+  it('cutthroat at big-lagoon in January → pass (Big Lagoon is year-round, unlike Stone)', () => {
     const r = runLegal({ species: 'cutthroat', launch: 'big-lagoon', date: '2026-01-15' });
+    expect(r.result.status).toBe('pass');
+  });
+
+  it('cutthroat at stone-lagoon in January → fail (Nov 21–Feb spawning closure)', () => {
+    const r = runLegal({ species: 'cutthroat', launch: 'stone-lagoon', date: '2026-01-15' });
     expect(r.result.status).toBe('fail');
     const season = r.checks.find((c) => c.name === 'Season');
     expect(season?.status).toBe('fail');
+  });
+
+  it('cutthroat at stone-lagoon in May → pass (open during default window)', () => {
+    const r = runLegal({ species: 'cutthroat', launch: 'stone-lagoon', date: '2026-05-15' });
+    expect(r.result.status).toBe('pass');
   });
 });

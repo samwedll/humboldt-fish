@@ -30,7 +30,7 @@ export function runLegal({ species, launch, date }: LegalInput): LayerOutput {
       : `${species} is not realistically targeted at ${launchProfile.label}. Pick a different launch or a different species.`
   });
 
-  const season = isSpeciesOpen(species, date);
+  const season = isSpeciesOpen(species, date, launch);
   checks.push({
     layer: 'legal',
     name: 'Season',

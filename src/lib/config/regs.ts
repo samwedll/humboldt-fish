@@ -16,11 +16,18 @@
  * - Dungeness crab: CDPH domoic-acid advisory is surfaced as a requirements line, not
  *   as a hotline — it's an always-check, not a one-shot call.
  */
-import type { Species } from '../types.js';
+import type { Species, LaunchId } from '../types.js';
 
 export interface SpeciesRegs {
   label: string;
   seasonWindows: Array<{ start: string; end: string }>;
+  /**
+   * Per-launch overrides for cases where a species has different season
+   * windows at different waters (e.g., cutthroat is year-round at Big Lagoon
+   * but has a Nov 21–Feb spawning closure at Stone Lagoon).
+   * If unset for a launch, falls back to the default `seasonWindows`.
+   */
+  perLaunchSeasonWindows?: Partial<Record<LaunchId, Array<{ start: string; end: string }>>>;
   requirements: string[];
   hotlinePhone?: string;
   hotlineLabel?: string;
@@ -78,10 +85,13 @@ export const regs: Record<Species, SpeciesRegs> = {
   },
   cutthroat: {
     label: 'Coastal Cutthroat Trout (Humboldt Lagoons)',
-    // Big Lagoon historically year-round; Stone Lagoon closed Nov 21 – end of Feb.
-    // Model conservatively: open Mar 1 – Nov 20 (the Stone Lagoon-safe window).
-    // Big Lagoon-only trips outside this window are still legal but require manual verify.
+    // Stone Lagoon has a Nov 21 – end of Feb spawning closure (CDFW manages spit
+    // openings around fish-passage windows). Big Lagoon is year-round.
+    // Default reflects Stone's window; Big Lagoon overrides to year-round.
     seasonWindows: [{ start: '2026-03-01', end: '2026-11-20' }],
+    perLaunchSeasonWindows: {
+      'big-lagoon': [{ start: '2026-01-01', end: '2026-12-31' }]
+    },
     requirements: [
       'CDFW Sport Fishing License (16+)',
       'Daily bag: 1 fish (both lagoons historically)',
@@ -180,15 +190,24 @@ export interface SeasonCheck {
   reason?: string;
 }
 
-export function isSpeciesOpen(species: Species, dateISO: string): SeasonCheck {
+/**
+ * Check whether a species is in season on a date. Optionally launch-aware —
+ * if `launch` is provided AND `regs[species].perLaunchSeasonWindows[launch]`
+ * is defined, those windows override the default. This is how cutthroat is
+ * year-round at Big Lagoon but Nov 21–Feb closed at Stone Lagoon.
+ */
+export function isSpeciesOpen(
+  species: Species,
+  dateISO: string,
+  launch?: LaunchId
+): SeasonCheck {
   const r = regs[species];
-  const inWindow = r.seasonWindows.some(
-    (w) => dateISO >= w.start && dateISO <= w.end
-  );
+  const windows = (launch && r.perLaunchSeasonWindows?.[launch]) ?? r.seasonWindows;
+  const inWindow = windows.some((w) => dateISO >= w.start && dateISO <= w.end);
   if (inWindow) return { open: true };
   return {
     open: false,
-    reason: `${r.label} closed on ${dateISO}. Open windows: ${r.seasonWindows
+    reason: `${r.label} closed on ${dateISO}. Open windows: ${windows
       .map((w) => `${w.start} – ${w.end}`)
       .join(', ')}.`
   };

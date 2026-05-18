@@ -7,8 +7,8 @@ import type { Species, LaunchId } from '../types.js';
  */
 export const speciesLaunchCompat: Record<LaunchId, Species[]> = {
   trinidad: ['rockfish', 'lingcod', 'salmon', 'surfperch', 'pacific-halibut', 'albacore-tuna', 'dungeness-crab'],
-  'big-lagoon': ['cutthroat'],
-  'stone-lagoon': ['cutthroat'],
+  'big-lagoon': ['cutthroat', 'surfperch'],
+  'stone-lagoon': ['cutthroat', 'surfperch'],
   'mad-river-slough': ['surfperch', 'california-halibut', 'dungeness-crab'],
   'humboldt-bay-interior': ['surfperch', 'california-halibut', 'dungeness-crab'],
   'freshwater-lagoon': ['bluegill', 'largemouth-bass', 'rainbow-trout']
