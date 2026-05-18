@@ -92,7 +92,19 @@
       <LayerTable {verdict} />
     </div>
 
-    {#if verdict.recommendations.window}
+    {#if verdict.recommendations.windows && verdict.recommendations.windows.length > 0}
+      <div class="mt-3 space-y-2">
+        <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Recommended windows</div>
+        {#each verdict.recommendations.windows as w}
+          <div class="rounded bg-neutral-50 p-3 text-sm">
+            <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
+            {#if w.rationale}
+              <div class="mt-1 text-xs text-neutral-600">{w.rationale}</div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {:else if verdict.recommendations.window}
       <div class="mt-3 rounded bg-neutral-50 p-3 text-sm">
         <strong>Window:</strong> {verdict.recommendations.window}
       </div>

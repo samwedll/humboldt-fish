@@ -37,8 +37,16 @@ export interface Check {
   note?: string;
 }
 
+export interface LaunchWindow {
+  label: string;        // "Morning", "Evening", "Around 13:11 slack", etc.
+  launchAt: string;     // formatted local time, e.g. "05:51 PT"
+  returnBy: string;     // formatted local time, e.g. "09:51 PT"
+  rationale?: string;   // short note explaining why this window
+}
+
 export interface Recommendations {
-  window?: string;
+  windows?: LaunchWindow[];   // structured list of recommended launch windows
+  window?: string;            // legacy single-window string; kept for backward compat
   gear?: string[];
   bailout?: string;
 }

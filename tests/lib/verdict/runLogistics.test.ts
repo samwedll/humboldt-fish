@@ -305,3 +305,83 @@ describe('runLogistics', () => {
     expect(r.checks.find((c) => c.name === 'Tidal currents')).toBeUndefined();
   });
 });
+
+describe('runLogistics — multiple launch windows', () => {
+  function dataWith(suntimes: import('../../../src/lib/types.js').SunTimes, tidalCurrents: import('../../../src/lib/types.js').TidalCurrents | null = null): import('../../../src/lib/types.js').FetchedData {
+    return {
+      ndbc46244: null, ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+      tidalCurrents, suntimes
+    };
+  }
+  const sun2026_05_18 = {
+    byDate: {
+      '2026-05-18': {
+        civilDawn: '2026-05-18T12:30:00Z',  // 05:30 PT
+        sunrise: '2026-05-18T13:05:00Z',
+        sunset: '2026-05-19T03:30:00Z',
+        civilDusk: '2026-05-19T04:00:00Z'   // 21:00 PT
+      }
+    }
+  };
+
+  it('Trinidad: morning window only (no evening — Pacific wind builds after 11 AM)', () => {
+    const r = runLogistics({ species: 'rockfish', date: '2026-05-18', launch: 'trinidad', data: dataWith(sun2026_05_18) });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBe(1);
+    expect(windows[0].label).toBe('Morning');
+    expect(windows[0].rationale).toMatch(/wind/i);
+  });
+
+  it('Big Lagoon: morning + evening windows', () => {
+    const r = runLogistics({ species: 'cutthroat', date: '2026-05-18', launch: 'big-lagoon', data: dataWith(sun2026_05_18) });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBe(2);
+    expect(windows[0].label).toBe('Morning');
+    expect(windows[1].label).toBe('Evening');
+  });
+
+  it('Freshwater Lagoon: morning + evening windows', () => {
+    const r = runLogistics({ species: 'bluegill', date: '2026-05-18', launch: 'freshwater-lagoon', data: dataWith(sun2026_05_18) });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBe(2);
+    expect(windows.map((w) => w.label)).toEqual(['Morning', 'Evening']);
+  });
+
+  it('Mad River Slough with afternoon slack data: 3 windows (morning + evening + slack)', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'mad-river-slough',
+      data: dataWith(sun2026_05_18, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T08:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T13:11', type: 'flood', velocityKt: 1.9, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T15:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T18:16', type: 'ebb', velocityKt: -1.4, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBe(3);
+    expect(windows.find((w) => /slack/i.test(w.label))).toBeDefined();
+  });
+
+  it('Humboldt Bay interior without currents data: 2 windows (morning + evening, no slack window)', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, null)
+    });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBe(2);
+    expect(windows.find((w) => /slack/i.test(w.label))).toBeUndefined();
+  });
+
+  it('legacy `window` string is still populated for backward compat', () => {
+    const r = runLogistics({ species: 'cutthroat', date: '2026-05-18', launch: 'big-lagoon', data: dataWith(sun2026_05_18) });
+    expect(r.recommendations.window).toMatch(/Launch.*return by.*4-hour/);
+  });
+});

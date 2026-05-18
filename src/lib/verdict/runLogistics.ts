@@ -4,6 +4,7 @@ import type {
   Check,
   Species,
   LaunchId,
+  LaunchWindow,
   Recommendations,
   TidalCurrents,
   TidalCurrentEvent
@@ -290,17 +291,78 @@ export function runLogistics({
     });
   }
 
-  let window: string | undefined;
+  // ============================================================
+  // Recommended launch windows
+  // ============================================================
+  // - All launches: morning twilight window (civil dawn + 30 min → 4h cap).
+  // - Non-open-ocean launches: also an evening twilight window
+  //   (4h before civil dusk → civil dusk).
+  //   Trinidad is excluded because afternoon Pacific wind builds dangerously
+  //   (per reference/launches.md: "Launch early — wind picks up by 11 AM consistently").
+  // - Tide-aware launches with currents data: also an afternoon-slack window
+  //   when a slack falls between 12:00 and 18:00 local Pacific.
+  const windows: LaunchWindow[] = [];
+
   if (sun) {
     const dawn = new Date(sun.civilDawn);
-    const launchTime = new Date(dawn.getTime() + 30 * 60 * 1000);
-    const returnBy = new Date(launchTime.getTime() + 4 * 60 * 60 * 1000);
-    window = `Launch ${formatPacificTime(launchTime)}, return by ${formatPacificTime(returnBy)} (4-hour trip cap)`;
+    const morningLaunch = new Date(dawn.getTime() + 30 * 60 * 1000);
+    const morningReturn = new Date(morningLaunch.getTime() + 4 * 60 * 60 * 1000);
+    windows.push({
+      label: 'Morning',
+      launchAt: formatPacificTime(morningLaunch),
+      returnBy: formatPacificTime(morningReturn),
+      rationale:
+        launchProfile.openOcean
+          ? 'Pacific wind typically builds by 11 AM — morning is the safe window.'
+          : '4-hour trip cap from 30 min after civil dawn.'
+    });
+
+    if (!launchProfile.openOcean) {
+      const dusk = new Date(sun.civilDusk);
+      const eveningLaunch = new Date(dusk.getTime() - 4 * 60 * 60 * 1000);
+      windows.push({
+        label: 'Evening',
+        launchAt: formatPacificTime(eveningLaunch),
+        returnBy: formatPacificTime(dusk),
+        rationale: 'Late afternoon to civil dusk; common second bite, wind often drops at sunset.'
+      });
+    }
   }
+
+  // Afternoon slack window for tide-aware launches when currents data is available.
+  if (launchProfile.currentStation && data.tidalCurrents) {
+    const slacks = data.tidalCurrents.events.filter(
+      (e) => e.type === 'slack' && e.time.startsWith(date)
+    );
+    const afternoonSlack = slacks.find((e) => {
+      const hr = Number(e.time.slice(11, 13));
+      return hr >= 12 && hr < 18;
+    });
+    if (afternoonSlack) {
+      const slackTime = new Date(afternoonSlack.time);
+      const slackLaunch = new Date(slackTime.getTime() - 30 * 60 * 1000);
+      const slackReturn = new Date(slackLaunch.getTime() + 4 * 60 * 60 * 1000);
+      windows.push({
+        label: `Around ${formatPacificTime(slackTime)} slack`,
+        launchAt: formatPacificTime(slackLaunch),
+        returnBy: formatPacificTime(slackReturn),
+        rationale: 'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
+      });
+    }
+  }
+
+  // Legacy single-window string for any consumer that hasn't migrated.
+  const legacyWindow = windows[0]
+    ? `Launch ${windows[0].launchAt}, return by ${windows[0].returnBy} (4-hour trip cap)`
+    : undefined;
 
   return {
     result: { status: 'pass', summary: `${launchProfile.label}, ${species}` },
     checks,
-    recommendations: { window, gear: [...BASE_GEAR, ...SPECIES_GEAR[species]] }
+    recommendations: {
+      windows: windows.length > 0 ? windows : undefined,
+      window: legacyWindow,
+      gear: [...BASE_GEAR, ...SPECIES_GEAR[species]]
+    }
   };
 }
