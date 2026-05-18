@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Verdict, Species, DataSources } from '$lib/types.js';
+  import type { Verdict, Species, DataSources, LaunchWindow } from '$lib/types.js';
   import VerdictPill from './VerdictPill.svelte';
   import LayerTable from './LayerTable.svelte';
   import { regs } from '$lib/config/regs.js';
@@ -7,12 +7,14 @@
   type Props = {
     verdict: Verdict;
     species: Species;
+    launchLabel: string;
     mode?: 'today' | 'row';
     lowConfidence?: boolean;
   };
-  let { verdict, species, mode = 'row', lowConfidence = false }: Props = $props();
+  let { verdict, species, launchLabel, mode = 'row', lowConfidence = false }: Props = $props();
 
   let expanded = $state(mode === 'today');
+  let copiedLabel = $state<string | null>(null);
 
   function fmtDate(d: string): string {
     const [, m, day] = d.split('-');
@@ -54,6 +56,44 @@
   let tidalCurrentsCheck = $derived(
     verdict.checks.find((c) => c.name === 'Tidal currents')
   );
+
+  /**
+   * Compose a paste-ready float-plan message for the given window. Sam taps
+   * the button, the text goes to the clipboard, and he pastes into Messages
+   * or Mail to send to his shore contact.
+   */
+  function buildShoreMessage(w: LaunchWindow): string {
+    const lines = [
+      `Kayak fishing — ${verdict.date}`,
+      `Launch: ${launchLabel} (${species})`,
+      `On the water: ${w.launchAt}`,
+      `Off the water (planned): ${w.returnBy}`,
+      `On board: VHF Ch 16, PLB, full safety kit`,
+      ``,
+      `If no contact by ${w.checkInBy} (1 hour after planned return):`,
+      `  USCG Station Humboldt Bay: 707-839-6113`,
+      `  Bar reports + emergency: VHF Ch 16 / Ch 22A`
+    ];
+    if (species === 'salmon') {
+      lines.push(`  CDFW salmon hotline: 707-576-3429`);
+    }
+    return lines.join('\n');
+  }
+
+  async function copyShoreMessage(w: LaunchWindow) {
+    const message = buildShoreMessage(w);
+    try {
+      await navigator.clipboard.writeText(message);
+      copiedLabel = w.label;
+      setTimeout(() => {
+        if (copiedLabel === w.label) copiedLabel = null;
+      }, 2000);
+    } catch (_e) {
+      // Browser refused (rare on HTTPS + user gesture). Fall back to a prompt
+      // so the user can still copy manually.
+      window.prompt('Copy this shore comm message:', message);
+    }
+  }
 </script>
 
 <article
@@ -97,10 +137,22 @@
         <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Recommended windows</div>
         {#each verdict.recommendations.windows as w}
           <div class="rounded bg-neutral-50 p-3 text-sm">
-            <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
-            {#if w.rationale}
-              <div class="mt-1 text-xs text-neutral-600">{w.rationale}</div>
-            {/if}
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex-1">
+                <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
+                {#if w.rationale}
+                  <div class="mt-1 text-xs text-neutral-600">{w.rationale}</div>
+                {/if}
+              </div>
+              <button
+                type="button"
+                class="shrink-0 rounded border border-neutral-300 bg-white px-2 py-1 text-xs hover:bg-neutral-100"
+                onclick={() => copyShoreMessage(w)}
+                aria-label={`Copy shore comm message for ${w.label} window`}
+              >
+                {copiedLabel === w.label ? '✓ Copied' : '📋 Copy shore msg'}
+              </button>
+            </div>
           </div>
         {/each}
       </div>

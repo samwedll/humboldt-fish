@@ -332,6 +332,18 @@ describe('runLogistics — multiple launch windows', () => {
     expect(windows[0].rationale).toMatch(/wind/i);
   });
 
+  it('every window has a checkInBy time (returnBy + 1 hour) for shore-comm float plans', () => {
+    const r = runLogistics({ species: 'cutthroat', date: '2026-05-18', launch: 'big-lagoon', data: dataWith(sun2026_05_18) });
+    for (const w of r.recommendations.windows!) {
+      expect(w.checkInBy).toMatch(/^\d{2}:\d{2} PT$/);
+      // checkInBy parses as a higher hour-minute than returnBy
+      const ret = parseInt(w.returnBy.split(':')[0]) * 60 + parseInt(w.returnBy.split(':')[1].slice(0, 2));
+      const chk = parseInt(w.checkInBy.split(':')[0]) * 60 + parseInt(w.checkInBy.split(':')[1].slice(0, 2));
+      const delta = ((chk - ret) + 24 * 60) % (24 * 60);
+      expect(delta).toBe(60);
+    }
+  });
+
   it('Big Lagoon: morning + evening windows', () => {
     const r = runLogistics({ species: 'cutthroat', date: '2026-05-18', launch: 'big-lagoon', data: dataWith(sun2026_05_18) });
     const windows = r.recommendations.windows!;

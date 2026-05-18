@@ -41,6 +41,7 @@ export interface LaunchWindow {
   label: string;        // "Morning", "Evening", "Around 13:11 slack", etc.
   launchAt: string;     // formatted local time, e.g. "05:51 PT"
   returnBy: string;     // formatted local time, e.g. "09:51 PT"
+  checkInBy: string;    // returnBy + 1 hour — when shore contact should call USCG if no contact
   rationale?: string;   // short note explaining why this window
 }
 

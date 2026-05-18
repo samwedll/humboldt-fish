@@ -323,10 +323,12 @@ export function runLogistics({
     const dawn = new Date(sun.civilDawn);
     const morningLaunch = new Date(dawn.getTime() + 30 * 60 * 1000);
     const morningReturn = new Date(morningLaunch.getTime() + 4 * 60 * 60 * 1000);
+    const morningCheckIn = new Date(morningReturn.getTime() + 60 * 60 * 1000);
     windows.push({
       label: 'Morning',
       launchAt: formatPacificTime(morningLaunch),
       returnBy: formatPacificTime(morningReturn),
+      checkInBy: formatPacificTime(morningCheckIn),
       rationale:
         launchProfile.openOcean
           ? 'Pacific wind typically builds by 11 AM — morning is the safe window.'
@@ -336,10 +338,12 @@ export function runLogistics({
     if (!launchProfile.openOcean) {
       const dusk = new Date(sun.civilDusk);
       const eveningLaunch = new Date(dusk.getTime() - 4 * 60 * 60 * 1000);
+      const eveningCheckIn = new Date(dusk.getTime() + 60 * 60 * 1000);
       windows.push({
         label: 'Evening',
         launchAt: formatPacificTime(eveningLaunch),
         returnBy: formatPacificTime(dusk),
+        checkInBy: formatPacificTime(eveningCheckIn),
         rationale: 'Late afternoon to civil dusk; common second bite, wind often drops at sunset.'
       });
     }
@@ -360,6 +364,7 @@ export function runLogistics({
         label: `Around ${fmtTime(afternoonSlack.time)} slack`,
         launchAt: shiftPacificTime(afternoonSlack.time, -30),
         returnBy: shiftPacificTime(afternoonSlack.time, -30 + 4 * 60),
+        checkInBy: shiftPacificTime(afternoonSlack.time, -30 + 5 * 60),
         rationale: 'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
       });
     }

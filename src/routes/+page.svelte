@@ -169,12 +169,12 @@
       Could not load verdicts: {pageError}. Verify NOAA directly via <a class="underline" href="tel:7078396113">USCG 707-839-6113</a> or VHF 22A.
     </div>
   {:else if today}
-    <DayCard verdict={today} {species} mode="today" />
+    <DayCard verdict={today} {species} {launchLabel} mode="today" />
 
     <h2 class="mt-5 mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">Next days</h2>
     <div class="space-y-2">
       {#each rest as v, i}
-        <DayCard verdict={v} {species} mode="row" lowConfidence={i >= 4} />
+        <DayCard verdict={v} {species} {launchLabel} mode="row" lowConfidence={i >= 4} />
       {/each}
     </div>
 
