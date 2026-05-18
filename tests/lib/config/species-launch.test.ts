@@ -76,4 +76,17 @@ describe('speciesLaunchCompat', () => {
   it('albacore-tuna at humboldt-bay-interior → incompatible (open-Pacific only)', () => {
     expect(isSpeciesLaunchCompatible('albacore-tuna', 'humboldt-bay-interior')).toBe(false);
   });
+
+  it('bluegill at freshwater-lagoon → compatible', () => {
+    expect(isSpeciesLaunchCompatible('bluegill', 'freshwater-lagoon')).toBe(true);
+  });
+  it('bluegill at trinidad → incompatible', () => {
+    expect(isSpeciesLaunchCompatible('bluegill', 'trinidad')).toBe(false);
+  });
+  it('largemouth-bass at big-lagoon → incompatible (only Freshwater Lagoon)', () => {
+    expect(isSpeciesLaunchCompatible('largemouth-bass', 'big-lagoon')).toBe(false);
+  });
+  it('rainbow-trout at stone-lagoon → incompatible (cutthroat is the Stone Lagoon trout)', () => {
+    expect(isSpeciesLaunchCompatible('rainbow-trout', 'stone-lagoon')).toBe(false);
+  });
 });

@@ -13,5 +13,8 @@ export const SPECIES_LABEL: Record<Species, string> = {
   'california-halibut': 'CA halibut',
   'dungeness-crab': 'crab',
   'pacific-halibut': 'Pac halibut',
-  'albacore-tuna': 'albacore'
+  'albacore-tuna': 'albacore',
+  bluegill: 'bluegill',
+  'largemouth-bass': 'bass',
+  'rainbow-trout': 'trout'
 };

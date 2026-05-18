@@ -10,7 +10,8 @@ export const speciesLaunchCompat: Record<LaunchId, Species[]> = {
   'big-lagoon': ['cutthroat'],
   'stone-lagoon': ['cutthroat'],
   'mad-river-slough': ['surfperch', 'california-halibut', 'dungeness-crab'],
-  'humboldt-bay-interior': ['surfperch', 'california-halibut', 'dungeness-crab']
+  'humboldt-bay-interior': ['surfperch', 'california-halibut', 'dungeness-crab'],
+  'freshwater-lagoon': ['bluegill', 'largemouth-bass', 'rainbow-trout']
 };
 
 export function isSpeciesLaunchCompatible(species: Species, launch: LaunchId): boolean {
