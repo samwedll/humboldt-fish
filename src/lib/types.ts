@@ -63,6 +63,7 @@ export interface SourceFreshness {
   nwsZone?: string;
   nwsPoint?: string;
   tides?: string;
+  tidalCurrents?: string;
   suntimes?: string;
 }
 
@@ -78,6 +79,7 @@ export interface FetchedData {
   nwsZone: NwsZoneForecast | null;
   nwsPoint: NwsPointForecast | null;
   tides: TidePredictions | null;
+  tidalCurrents: TidalCurrents | null;
   suntimes: SunTimes;
 }
 
@@ -133,6 +135,22 @@ export interface TideEvent {
 export interface TidePredictions {
   station: string;
   events: TideEvent[];
+}
+
+export type TidalCurrentEventType = 'slack' | 'flood' | 'ebb';
+
+export interface TidalCurrentEvent {
+  time: string;             // Local LST/LDT, format "YYYY-MM-DDTHH:MM"
+  type: TidalCurrentEventType;
+  velocityKt: number;       // Signed: positive = flood, negative = ebb, ~0 = slack
+  meanFloodDirDeg: number;
+  meanEbbDirDeg: number;
+}
+
+export interface TidalCurrents {
+  station: string;
+  units: string;
+  events: TidalCurrentEvent[];
 }
 
 export interface SunTimes {

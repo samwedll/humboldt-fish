@@ -15,7 +15,12 @@ describe('types', () => {
         logistics: { status: 'pass', summary: 'Trinidad ramp' }
       },
       checks: [],
-      recommendations: {}
+      recommendations: {},
+      dataSources: {
+        buoy: 'not-applicable',
+        nwsZone: 'missing',
+        nwsPoint: 'missing'
+      }
     };
     expect(v.verdict).toBe('GO');
   });

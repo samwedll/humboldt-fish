@@ -21,6 +21,7 @@ function calmDayData(): FetchedData {
       station: '9418767',
       events: [{ time: '2026-05-18T05:30:00', height: 4.5, type: 'H' }]
     },
+    tidalCurrents: null,
     suntimes: {
       byDate: {
         '2026-05-18': {
@@ -264,6 +265,7 @@ describe('computeVerdict — dataSources field', () => {
           }]
         },
         tides: { station: '9418767', events: [] },
+        tidalCurrents: null,
         suntimes: {
           byDate: { '2026-05-18': { civilDawn: '2026-05-18T12:30:00Z', sunrise: '2026-05-18T13:05:00Z', sunset: '2026-05-19T03:30:00Z', civilDusk: '2026-05-19T04:00:00Z' } }
         }
@@ -288,6 +290,7 @@ describe('computeVerdict — dataSources field', () => {
           waterTempF: 52
         },
         ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });
@@ -302,6 +305,7 @@ describe('computeVerdict — dataSources field', () => {
       launch: 'big-lagoon',
       data: {
         ndbc46244: null, ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });
@@ -325,6 +329,7 @@ describe('computeVerdict — dataSources field', () => {
           }]
         },
         nwsPoint: null, tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });

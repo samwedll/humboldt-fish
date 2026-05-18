@@ -26,6 +26,13 @@ export interface TidesSourceDef {
   ttlSec: number;
 }
 
+export interface CurrentsSourceDef {
+  label: string;
+  defaultStation: string;
+  url: (station: string, beginDate: string, endDate: string) => string;
+  ttlSec: number;
+}
+
 export const sources = {
   ndbc46244: {
     label: 'NDBC 46244 (Humboldt Bay)',
@@ -62,7 +69,19 @@ export const sources = {
       `datum=MLLW&station=${station}&time_zone=lst_ldt&units=english&` +
       `interval=hilo&format=json`,
     ttlSec: 86400
-  } as TidesSourceDef
+  } as TidesSourceDef,
+
+  currents: {
+    label: 'NOAA Tidal Currents (HUB0203)',
+    defaultStation: 'HUB0203',
+    url: (station, beginDate, endDate) =>
+      `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?` +
+      `product=currents_predictions&application=humboldt.fish&` +
+      `begin_date=${beginDate}&end_date=${endDate}&` +
+      `station=${station}&time_zone=lst_ldt&interval=max_slack&` +
+      `units=english&format=json`,
+    ttlSec: 86400
+  } as CurrentsSourceDef
 };
 
 export const USER_AGENT = 'humboldt.fish (https://humboldt.fish)';

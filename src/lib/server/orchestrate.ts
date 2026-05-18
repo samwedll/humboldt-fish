@@ -56,6 +56,7 @@ export async function orchestrateVerdict(input: OrchestrateInput): Promise<Verdi
     nwsZone: zone.ok ? zone.data! : null,
     nwsPoint: point.ok ? point.data! : null,
     tides: tides.ok ? tides.data! : null,
+    tidalCurrents: null,
     suntimes
   };
 

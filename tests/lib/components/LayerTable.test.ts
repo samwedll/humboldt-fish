@@ -14,7 +14,12 @@ const sample: Verdict = {
   checks: [
     { layer: 'safety', name: 'Swell height', value: '3.5 ft', threshold: '≤ 5 ft', status: 'pass' }
   ],
-  recommendations: {}
+  recommendations: {},
+  dataSources: {
+    buoy: 'not-applicable',
+    nwsZone: 'missing',
+    nwsPoint: 'missing'
+  }
 };
 
 describe('LayerTable', () => {

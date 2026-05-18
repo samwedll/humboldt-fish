@@ -18,6 +18,7 @@ function calmBuoyData(overrides: Partial<FetchedData> = {}): FetchedData {
     nwsZone: null,
     nwsPoint: null,
     tides: null,
+    tidalCurrents: null,
     suntimes: { byDate: {} },
     ...overrides
   };
@@ -427,6 +428,7 @@ describe('runSafety — Trinidad-today live-buoy gate', () => {
         },
         nwsPoint: null,
         tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });
@@ -454,6 +456,7 @@ describe('runSafety — Trinidad-today live-buoy gate', () => {
         },
         nwsPoint: null,
         tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });
@@ -480,6 +483,7 @@ describe('runSafety — Trinidad-today live-buoy gate', () => {
           }]
         },
         tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });
@@ -499,6 +503,7 @@ describe('runSafety — Trinidad-today live-buoy gate', () => {
           waterTempF: 52
         },
         ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        tidalCurrents: null,
         suntimes: { byDate: {} }
       }
     });

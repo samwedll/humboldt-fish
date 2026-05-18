@@ -9,6 +9,7 @@ function data(): FetchedData {
     nwsZone: null,
     nwsPoint: null,
     tides: null,
+    tidalCurrents: null,
     suntimes: {
       byDate: {
         '2026-05-18': {

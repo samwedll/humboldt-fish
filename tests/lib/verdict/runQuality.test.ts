@@ -17,6 +17,7 @@ function baseData(): FetchedData {
         { time: '2026-05-18T23:51:00', height: 4.9, type: 'H' }
       ]
     },
+    tidalCurrents: null,
     suntimes: {
       byDate: {
         '2026-05-18': {
