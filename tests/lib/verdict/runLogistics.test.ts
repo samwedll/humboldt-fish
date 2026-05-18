@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { runLogistics } from '../../../src/lib/verdict/runLogistics.js';
+import {
+  runLogistics,
+  annotateWindowWithTide
+} from '../../../src/lib/verdict/runLogistics.js';
 import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
 import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
 
@@ -395,5 +398,42 @@ describe('runLogistics — multiple launch windows', () => {
   it('legacy `window` string is still populated for backward compat', () => {
     const r = runLogistics({ species: 'cutthroat', date: '2026-05-18', launch: 'big-lagoon', data: dataWith(sun2026_05_18) });
     expect(r.recommendations.window).toMatch(/Launch.*return by.*4-hour/);
+  });
+});
+
+describe('annotateWindowWithTide', () => {
+  const fixture = currentsFixture;
+
+  it('window across a flood event: phase=flood, peak detected', () => {
+    // 2026-05-17: slack 07:28, flood-peak 11:22 at 2.09 kt, slack 14:17.
+    // Window 09:00–13:00 covers the rising-flood peak.
+    const a = annotateWindowWithTide('2026-05-17T09:00', '2026-05-17T13:00', fixture);
+    expect(a.phase).toBe('flood');
+    expect(a.peakSpeedKt).toBeCloseTo(2.09, 2);
+    expect(a.peakType).toBe('flood');
+    expect(a.peakTimeLocal).toBe('11:22 PT');
+    expect(a.description).toMatch(/flood/i);
+    expect(a.description).toMatch(/2\.1 kt/);
+  });
+
+  it('window straddling a slack: phase=mixed', () => {
+    // 2026-05-17: flood-peak 11:22, slack 14:17, ebb-peak 16:32 at -1.56.
+    // Window 13:00–17:00 straddles the 14:17 slack. Ebb peak (1.56) is the
+    // only non-slack event inside the window.
+    const a = annotateWindowWithTide('2026-05-17T13:00', '2026-05-17T17:00', fixture);
+    expect(a.phase).toBe('mixed');
+    expect(a.peakSpeedKt).toBeCloseTo(1.56, 2);
+    expect(a.peakType).toBe('ebb');
+    expect(a.description).toMatch(/slack/i);
+  });
+
+  it('ebb-heavy morning window: phase=ebb, peak detected', () => {
+    // 2026-05-18: slack 01:06, ebb-peak 04:14 at -3.34 kt, slack 08:12.
+    // Window 03:00–07:00 covers ebb peak.
+    const a = annotateWindowWithTide('2026-05-18T03:00', '2026-05-18T07:00', fixture);
+    expect(a.phase).toBe('ebb');
+    expect(a.peakSpeedKt).toBeCloseTo(3.34, 2);
+    expect(a.peakType).toBe('ebb');
+    expect(a.peakTimeLocal).toBe('04:14 PT');
   });
 });

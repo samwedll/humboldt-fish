@@ -177,6 +177,104 @@ export function summarizeCurrents(currents: TidalCurrents, date: string): Curren
   return { morningSlack, floodPeak, ebbPeak };
 }
 
+const EBB_WARN_KT = 1.5;
+const FLOOD_WARN_KT = 3.0;
+const CLAMP_BUFFER_MIN = 15;
+const MIN_TRIP_HOURS = 2;
+
+/**
+ * "HH:MM PT" formatted from a "YYYY-MM-DDTHH:MM" Pacific-local string.
+ * Lives next to other helpers in this file so we don't ferry Date objects around.
+ */
+function ptIsoToHhmmLabel(iso: string): string {
+  return `${iso.slice(11, 16)} PT`;
+}
+
+/**
+ * Annotate a launch window with its dominant tide phase, peak current, and a
+ * short prose summary suitable for a UI chip.
+ *
+ * windowStart / windowEnd are Pacific-local "YYYY-MM-DDTHH:MM" strings — the
+ * same form as TidalCurrentEvent.time. String comparison is correct under that
+ * format.
+ */
+export function annotateWindowWithTide(
+  windowStart: string,
+  windowEnd: string,
+  currents: TidalCurrents
+): import('../types.js').TidePhaseAnnotation {
+  const events = currents.events;
+  const inside = events.filter((e) => e.time >= windowStart && e.time <= windowEnd);
+
+  // Determine phase. If a slack falls inside the window, the window crosses
+  // a transition: phase = 'mixed'. Otherwise, find the bracketing flood/ebb
+  // event by walking forward through events from windowStart.
+  const slackInside = inside.find((e) => e.type === 'slack');
+  let phase: 'ebb' | 'flood' | 'slack' | 'mixed';
+  if (slackInside) {
+    phase = 'mixed';
+  } else {
+    const next = events.find((e) => e.time >= windowStart);
+    if (next && next.type !== 'slack') {
+      phase = next.type;
+    } else {
+      const bracketing = [
+        ...inside,
+        ...events.filter((e) => e.time < windowStart).slice(-1),
+        ...events.filter((e) => e.time > windowEnd).slice(0, 1)
+      ];
+      const strongest = bracketing.reduce((acc, e) =>
+        Math.abs(e.velocityKt) > Math.abs(acc.velocityKt) ? e : acc,
+        bracketing[0]
+      );
+      phase = strongest.type === 'slack' ? 'slack' : strongest.type;
+    }
+  }
+
+  // Peak speed: max |velocity_major| among events inside the window. If none
+  // are inside (very short window), fall back to the larger of the two
+  // bracketing events.
+  let peakEvent: TidalCurrentEvent | undefined = inside.reduce<TidalCurrentEvent | undefined>(
+    (acc, e) => (!acc || Math.abs(e.velocityKt) > Math.abs(acc.velocityKt) ? e : acc),
+    undefined
+  );
+  if (!peakEvent) {
+    const before = events.filter((e) => e.time < windowStart).slice(-1)[0];
+    const after = events.filter((e) => e.time > windowEnd)[0];
+    peakEvent = [before, after]
+      .filter((e): e is TidalCurrentEvent => e !== undefined)
+      .reduce<TidalCurrentEvent | undefined>(
+        (acc, e) => (!acc || Math.abs(e.velocityKt) > Math.abs(acc.velocityKt) ? e : acc),
+        undefined
+      );
+  }
+  const peakSpeedKt = peakEvent ? Math.abs(peakEvent.velocityKt) : 0;
+  const peakType: 'ebb' | 'flood' | 'slack' = peakEvent ? peakEvent.type : 'slack';
+  const peakTimeLocal = peakEvent ? ptIsoToHhmmLabel(peakEvent.time) : ptIsoToHhmmLabel(windowStart);
+
+  // Description.
+  let description: string;
+  if (phase === 'mixed') {
+    const slack = inside.find((e) => e.type === 'slack')!;
+    const peak = inside.find((e) => e.type !== 'slack');
+    if (peak) {
+      const earlierPhase = peak.time < slack.time ? peak.type : (peak.type === 'flood' ? 'ebb' : 'flood');
+      const laterPhase = earlierPhase === 'flood' ? 'ebb' : 'flood';
+      description = `${earlierPhase} → slack ${slack.time.slice(11, 16)} → ${laterPhase} (peaks ${peakSpeedKt.toFixed(1)} kt at ${peak.time.slice(11, 16)})`;
+    } else {
+      description = `slack ${slack.time.slice(11, 16)} mid-window`;
+    }
+  } else if (phase === 'flood') {
+    description = `flood building, peaks ${peakSpeedKt.toFixed(1)} kt at ${peakTimeLocal.replace(' PT', '')}`;
+  } else if (phase === 'ebb') {
+    description = `ebb (peaks ${peakSpeedKt.toFixed(1)} kt at ${peakTimeLocal.replace(' PT', '')})`;
+  } else {
+    description = `slack`;
+  }
+
+  return { phase, peakSpeedKt, peakType, peakTimeLocal, description };
+}
+
 const SPECIES_RISK: Partial<Record<Species, string>> = {
   'pacific-halibut':
     'Deep-water trip (3-5 mi offshore at Trinidad). Long forecast horizon needed — wind/swell must hold for 6-8 hours. Not solo year 1.',
