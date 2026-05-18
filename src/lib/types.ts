@@ -37,12 +37,27 @@ export interface Check {
   note?: string;
 }
 
+export interface TidePhaseAnnotation {
+  /** Dominant tide phase across the window. 'mixed' when the window straddles a slack. */
+  phase: 'ebb' | 'flood' | 'slack' | 'mixed';
+  /** Maximum |velocity_major| observed within the (pre-clamp) window, in knots. */
+  peakSpeedKt: number;
+  /** Type of the peak event ('ebb' or 'flood'). 'slack' when no peak event falls inside the window. */
+  peakType: 'ebb' | 'flood' | 'slack';
+  /** Time of peak speed, formatted as "HH:MM PT". */
+  peakTimeLocal: string;
+  /** Short human-readable summary for the UI chip. */
+  description: string;
+}
+
 export interface LaunchWindow {
   label: string;        // "Morning", "Evening", "Around 13:11 slack", etc.
   launchAt: string;     // formatted local time, e.g. "05:51 PT"
   returnBy: string;     // formatted local time, e.g. "09:51 PT"
   checkInBy: string;    // returnBy + 1 hour — when shore contact should call USCG if no contact
   rationale?: string;   // short note explaining why this window
+  tide?: TidePhaseAnnotation;  // populated on tide-aware launches when currents data is available
+  warning?: string;            // populated when window is demoted (e.g. peak ebb in pre-clamp window > 1.5 kt)
 }
 
 export interface Recommendations {
