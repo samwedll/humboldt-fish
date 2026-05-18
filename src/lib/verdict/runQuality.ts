@@ -1,4 +1,5 @@
 import type { FetchedData, LayerResult, Check, Species } from '../types.js';
+import { formatPacificTime } from '../format.js';
 
 export interface QualityInput {
   species: Species;
@@ -46,10 +47,12 @@ export function runQuality({ species, date, data }: QualityInput): QualityOutput
       ? 'Salmon trolling is tide-agnostic; informational only.'
       : 'Rockfish/lingcod prefer slack-to-flooding transition.';
 
+  // Tide times come back as YYYY-MM-DDTHH:MM in local Pacific time (LST/LDT
+  // requested from the NOAA tides API), so we just append the "PT" label.
   checks.push({
     layer: 'quality',
     name: 'Morning slack',
-    value: slack ? slack.slice(11, 16) : 'none in 04:00–10:00',
+    value: slack ? `${slack.slice(11, 16)} PT` : 'none in 04:00–10:00 PT',
     threshold: 'morning slack preferred',
     status: 'pass',
     note: slackNote
@@ -60,10 +63,10 @@ export function runQuality({ species, date, data }: QualityInput): QualityOutput
     checks.push({
       layer: 'quality',
       name: 'Daylight window',
-      value: `${sun.sunrise.slice(11, 16)}Z – ${sun.sunset.slice(11, 16)}Z`,
+      value: `${formatPacificTime(sun.sunrise)} – ${formatPacificTime(sun.sunset)}`,
       threshold: '—',
       status: 'pass',
-      note: `Civil dawn ${sun.civilDawn.slice(11, 16)}Z, civil dusk ${sun.civilDusk.slice(11, 16)}Z`
+      note: `Civil dawn ${formatPacificTime(sun.civilDawn)}, civil dusk ${formatPacificTime(sun.civilDusk)}`
     });
   }
 

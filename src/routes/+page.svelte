@@ -93,7 +93,7 @@
   }
 
   const STALE_THRESHOLDS_MIN: Record<string, number> = {
-    ndbc46244: 20, ndbc46022: 20, nwsZone: 120, nwsPoint: 120, tides: 2880
+    ndbc46244: 20, ndbc46022: 20, nwsZone: 120, nwsPoint: 120, tides: 2880, tidalCurrents: 2880
   };
   function isStale(iso: string | undefined, key: keyof typeof STALE_THRESHOLDS_MIN): boolean {
     if (!iso) return false;
@@ -103,6 +103,23 @@
 
   const LAUNCH_OPTIONS: { id: LaunchId; label: string }[] = (Object.keys(launches) as LaunchId[])
     .map((id) => ({ id, label: getLaunch(id).label }));
+
+  // Public URLs for each data source so users can tap to verify directly.
+  const SOURCE_URLS = {
+    ndbc46244: 'https://www.ndbc.noaa.gov/station_page.php?station=46244',
+    nwsZone: 'https://forecast.weather.gov/shmrn.php?mz=pzz450',
+    tides: 'https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9418767'
+  };
+  let launchCoords = $derived(getLaunch(launch).coordinates);
+  let currentStation = $derived(getLaunch(launch).currentStation);
+  let nwsPointUrl = $derived(
+    `https://forecast.weather.gov/MapClick.php?lat=${launchCoords.lat}&lon=${launchCoords.lon}`
+  );
+  let currentsUrl = $derived(
+    currentStation
+      ? `https://tidesandcurrents.noaa.gov/noaacurrents/Predictions?id=${currentStation}`
+      : null
+  );
 </script>
 
 <svelte:head>
@@ -162,16 +179,28 @@
     </div>
 
     <footer class="mt-6 border-t border-neutral-200 pt-3 text-xs text-neutral-500">
-      <p>Data freshness:</p>
+      <p>Data freshness (tap a source to verify directly):</p>
       <ul class="mt-1 space-y-0.5">
-        <li class={isStale(response?.freshness.ndbc46244, 'ndbc46244') ? 'text-red-600' : ''}>Buoy 46244: {ago(response?.freshness.ndbc46244)}</li>
-        <li class={isStale(response?.freshness.nwsZone, 'nwsZone') ? 'text-red-600' : ''}>NWS PZZ450: {ago(response?.freshness.nwsZone)}</li>
-        <li class={isStale(response?.freshness.nwsPoint, 'nwsPoint') ? 'text-red-600' : ''}>NWS point ({launchLabel}): {ago(response?.freshness.nwsPoint)}</li>
-        <li class={isStale(response?.freshness.tides, 'tides') ? 'text-red-600' : ''}>Tides 9418767: {ago(response?.freshness.tides)}</li>
+        <li class={isStale(response?.freshness.ndbc46244, 'ndbc46244') ? 'text-red-600' : ''}>
+          <a class="underline" href={SOURCE_URLS.ndbc46244} target="_blank" rel="noopener">Buoy 46244</a>: {ago(response?.freshness.ndbc46244)}
+        </li>
+        <li class={isStale(response?.freshness.nwsZone, 'nwsZone') ? 'text-red-600' : ''}>
+          <a class="underline" href={SOURCE_URLS.nwsZone} target="_blank" rel="noopener">NWS PZZ450</a>: {ago(response?.freshness.nwsZone)}
+        </li>
+        <li class={isStale(response?.freshness.nwsPoint, 'nwsPoint') ? 'text-red-600' : ''}>
+          <a class="underline" href={nwsPointUrl} target="_blank" rel="noopener">NWS point ({launchLabel})</a>: {ago(response?.freshness.nwsPoint)}
+        </li>
+        <li class={isStale(response?.freshness.tides, 'tides') ? 'text-red-600' : ''}>
+          <a class="underline" href={SOURCE_URLS.tides} target="_blank" rel="noopener">Tides 9418767</a>: {ago(response?.freshness.tides)}
+        </li>
+        {#if currentsUrl}
+          <li class={isStale(response?.freshness.tidalCurrents, 'tidalCurrents') ? 'text-red-600' : ''}>
+            <a class="underline" href={currentsUrl} target="_blank" rel="noopener">Tidal currents ({currentStation})</a>: {ago(response?.freshness.tidalCurrents)}
+          </li>
+        {/if}
       </ul>
-      <p class="mt-3">
-        Thresholds and decision logic:
-        <a class="underline" href="https://github.com/samwedll/humboldt-fish/tree/main/reference">reference/ on GitHub</a>
+      <p class="mt-3 italic text-neutral-400">
+        Times shown in Pacific time (PT). Verdicts apply Humboldt-specific thresholds — see <a class="underline" href="https://github.com/samwedll/humboldt-fish/tree/main/reference">reference/ on GitHub</a> for the source of truth.
       </p>
     </footer>
   {/if}

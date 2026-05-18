@@ -9,6 +9,7 @@ import type {
   TidalCurrentEvent
 } from '../types.js';
 import { getLaunch } from '../config/launches.js';
+import { formatPacificTime } from '../format.js';
 
 export interface LogisticsInput {
   species: Species;
@@ -110,7 +111,8 @@ function hourOf(timeStr: string): number {
 }
 
 function fmtTime(timeStr: string): string {
-  return timeStr.slice(11, 16);
+  // Currents API is requested with time_zone=lst_ldt → already Pacific local.
+  return `${timeStr.slice(11, 16)} PT`;
 }
 
 interface CurrentsSummary {
@@ -293,7 +295,7 @@ export function runLogistics({
     const dawn = new Date(sun.civilDawn);
     const launchTime = new Date(dawn.getTime() + 30 * 60 * 1000);
     const returnBy = new Date(launchTime.getTime() + 4 * 60 * 60 * 1000);
-    window = `Launch ${launchTime.toISOString().slice(11, 16)}Z, return by ${returnBy.toISOString().slice(11, 16)}Z (4h cap)`;
+    window = `Launch ${formatPacificTime(launchTime)}, return by ${formatPacificTime(returnBy)} (4-hour trip cap)`;
   }
 
   return {
