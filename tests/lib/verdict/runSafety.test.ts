@@ -228,11 +228,30 @@ describe('runSafety — future days (NWS prose path)', () => {
 });
 
 describe('runSafety — protected-water launches (per-launch profile)', () => {
-  it('big-lagoon with calm buoy → pass (wind only)', () => {
+  // NDBC 46244 is wave-only in reality — protected-water launches get their
+  // wind from the NWS point forecast (location-aware) or NWS zone prose.
+  function pointFixture(date: string, windSpeed: string, windDirection = 'NW') {
+    return {
+      updated: `${date}T15:00:00Z`,
+      periods: [{
+        number: 1, name: 'Today',
+        startTime: `${date}T09:00:00-07:00`,
+        endTime: `${date}T18:00:00-07:00`,
+        isDaytime: true,
+        temperature: 60,
+        windSpeed,
+        windDirection,
+        shortForecast: '',
+        detailedForecast: ''
+      }]
+    };
+  }
+
+  it('big-lagoon with calm point forecast → pass (wind only)', () => {
     const r = runSafety({
       date: '2026-05-17',
       launch: 'big-lagoon',
-      data: calmBuoyData()
+      data: calmBuoyData({ nwsPoint: pointFixture('2026-05-17', '5 to 7 mph') })
     });
     expect(r.result.status).toBe('pass');
     // No swell/period/alignment/water-temp checks for lagoons
@@ -242,83 +261,51 @@ describe('runSafety — protected-water launches (per-launch profile)', () => {
     expect(r.checks.find((c) => c.name === 'Water temp')).toBeUndefined();
   });
 
-  it('big-lagoon with 16 kt wind → fail (wind alone)', () => {
+  it('big-lagoon with strong wind from point forecast → fail (wind alone)', () => {
     const r = runSafety({
       date: '2026-05-17',
       launch: 'big-lagoon',
-      data: calmBuoyData({
-        ndbc46244: {
-          observedAt: '2026-05-17T14:00:00Z',
-          windKt: 16,
-          gustKt: 18,
-          windDirDeg: 270,
-          waveHtFt: 3,
-          dominantPeriodSec: 12,
-          meanWaveDirDeg: 275,
-          waterTempF: 52
-        }
-      })
+      data: calmBuoyData({ nwsPoint: pointFixture('2026-05-17', '15 to 20 mph') })
     });
     expect(r.result.status).toBe('fail');
     expect(r.checks.find((c) => c.name === 'Sustained wind')?.status).toBe('fail');
   });
 
-  it('big-lagoon with 10.5 ft swell + 6 kt wind → pass (lagoon skips swell)', () => {
+  it('big-lagoon with calm point wind + huge buoy swell → pass (lagoon skips swell)', () => {
     const r = runSafety({
       date: '2026-05-17',
       launch: 'big-lagoon',
       data: calmBuoyData({
         ndbc46244: {
           observedAt: '2026-05-17T14:00:00Z',
-          windKt: 6,
-          gustKt: 8,
-          windDirDeg: 270,
-          waveHtFt: 10.5,
-          dominantPeriodSec: 11,
-          meanWaveDirDeg: 295,
+          windKt: null, gustKt: null, windDirDeg: null,
+          waveHtFt: 10.5, dominantPeriodSec: 11, meanWaveDirDeg: 295,
           waterTempF: 52
-        }
-      })
-    });
-    expect(r.result.status).toBe('pass');
-  });
-
-  it('humboldt-bay-interior with 8 kt wind → pass (no swell checks for bay interior)', () => {
-    const r = runSafety({
-      date: '2026-05-17',
-      launch: 'humboldt-bay-interior',
-      data: calmBuoyData({
-        ndbc46244: {
-          observedAt: '2026-05-17T14:00:00Z',
-          windKt: 8,
-          gustKt: 10,
-          windDirDeg: 270,
-          waveHtFt: 4,
-          dominantPeriodSec: 12,
-          meanWaveDirDeg: 275,
-          waterTempF: 52
-        }
+        },
+        nwsPoint: pointFixture('2026-05-17', '5 to 7 mph')
       })
     });
     expect(r.result.status).toBe('pass');
     expect(r.checks.find((c) => c.name === 'Swell height')).toBeUndefined();
   });
 
-  it('mad-river-slough with 5 kt wind → pass', () => {
+  it('humboldt-bay-interior with light point-forecast wind → pass (no swell checks)', () => {
+    const r = runSafety({
+      date: '2026-05-17',
+      launch: 'humboldt-bay-interior',
+      data: calmBuoyData({ nwsPoint: pointFixture('2026-05-17', '5 to 9 mph') })
+    });
+    expect(r.result.status).toBe('pass');
+    expect(r.checks.find((c) => c.name === 'Swell height')).toBeUndefined();
+  });
+
+  it('mad-river-slough with calm point forecast → pass', () => {
     const r = runSafety({
       date: '2026-05-17',
       launch: 'mad-river-slough',
       data: calmBuoyData({
-        ndbc46244: {
-          observedAt: '2026-05-17T14:00:00Z',
-          windKt: 5,
-          gustKt: 7,
-          windDirDeg: 270,
-          waveHtFt: 8,
-          dominantPeriodSec: 9,
-          meanWaveDirDeg: 90,
-          waterTempF: 52
-        }
+        ndbc46244: null,
+        nwsPoint: pointFixture('2026-05-17', '3 to 6 mph')
       })
     });
     expect(r.result.status).toBe('pass');

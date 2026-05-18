@@ -125,19 +125,29 @@ describe('computeVerdict', () => {
     expect(v.layers.safety.status).toBe('incomplete');
   });
 
-  it('cutthroat at big-lagoon + March + 6 kt wind → GO', () => {
-    const d = calmDayData();
-    // shift the buoy + sun fixtures to a March date the function actually consults
-    d.ndbc46244 = {
-      observedAt: '2026-03-15T14:00:00Z',
-      windKt: 6,
-      gustKt: 8,
-      windDirDeg: 270,
-      waveHtFt: 3.5,
-      dominantPeriodSec: 12,
-      meanWaveDirDeg: 275,
-      waterTempF: 52
+  // Protected-water launches get wind from NWS point forecast (NDBC 46244 is
+  // wave-only in reality). Helper that builds a minimal point fixture for a date.
+  function calmPointFor(date: string) {
+    return {
+      updated: `${date}T15:00:00Z`,
+      periods: [{
+        number: 1, name: 'Today',
+        startTime: `${date}T09:00:00-07:00`,
+        endTime: `${date}T18:00:00-07:00`,
+        isDaytime: true,
+        temperature: 60,
+        windSpeed: '5 to 7 mph',
+        windDirection: 'NW',
+        shortForecast: '',
+        detailedForecast: ''
+      }]
     };
+  }
+
+  it('cutthroat at big-lagoon + March + calm point forecast → GO', () => {
+    const d = calmDayData();
+    d.ndbc46244 = null;
+    d.nwsPoint = calmPointFor('2026-03-15');
     d.suntimes.byDate['2026-03-15'] = {
       civilDawn: '2026-03-15T13:30:00Z',
       sunrise: '2026-03-15T14:05:00Z',
@@ -154,21 +164,27 @@ describe('computeVerdict', () => {
   });
 
   it('surfperch at humboldt-bay-interior + calm + in season → GO', () => {
+    const d = calmDayData();
+    d.ndbc46244 = null;
+    d.nwsPoint = calmPointFor('2026-05-18');
     const v = computeVerdict({
       date: '2026-05-18',
       species: 'surfperch',
       launch: 'humboldt-bay-interior',
-      data: calmDayData()
+      data: d
     });
     expect(v.verdict).toBe('GO');
   });
 
   it('california-halibut at humboldt-bay-interior in May → GO on calm-data day', () => {
+    const d = calmDayData();
+    d.ndbc46244 = null;
+    d.nwsPoint = calmPointFor('2026-05-18');
     const v = computeVerdict({
       date: '2026-05-18',
       species: 'california-halibut',
       launch: 'humboldt-bay-interior',
-      data: calmDayData()
+      data: d
     });
     expect(v.verdict).toBe('GO');
   });

@@ -126,11 +126,19 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
     };
   }
 
-  if (buoyMatchesDate && buoy) {
+  // The buoy branch is only useful for open-ocean launches that actually need
+  // swell/period/alignment checks against live observed wave data. For
+  // protected-water launches (lagoons, slough, bay) the wave-only NDBC 46244
+  // can't contribute wind — so we should skip the buoy branch and fall
+  // through to the NWS prose path, which incorporates point-forecast wind
+  // when available and zone-forecast prose when it isn't.
+  if (buoyMatchesDate && buoy && profile.requiresSwellCheck) {
     return runSafetyFromBuoy(buoy, profile, pointChecks);
   }
 
-  // Try NWS zone forecast for future days
+  // NWS zone forecast prose (CWF text product): primary path for future days
+  // and the late-evening today case where the NWS point forecast no longer
+  // includes a daytime period for today.
   if (data.nwsZone) {
     const match = findNwsPeriodForDate(data.nwsZone, date);
     if (match) {
