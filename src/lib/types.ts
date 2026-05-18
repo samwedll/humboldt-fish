@@ -45,6 +45,7 @@ export interface DataSources {
   buoy: SourcePresence;        // NDBC 46244 — applicable only to "today" verdicts
   nwsZone: SourcePresence;     // NWS CWF text product for PZZ450
   nwsPoint: SourcePresence;    // NWS point forecast for the launch's coordinates
+  currents: SourcePresence;    // NOAA tidal currents — applies only to launches with currentStation
 }
 
 export interface Verdict {

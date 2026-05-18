@@ -35,7 +35,8 @@
     const entries: [keyof DataSources, string][] = [
       ['buoy', 'buoy'],
       ['nwsZone', 'NWS forecast'],
-      ['nwsPoint', 'point forecast']
+      ['nwsPoint', 'point forecast'],
+      ['currents', 'currents']
     ];
     for (const [key, label] of entries) {
       if (ds[key] === 'live') live.push(label);
@@ -47,6 +48,12 @@
     return { label, hasMissing: missing.length > 0 };
   }
   let sourceChip = $derived(formatSources(verdict.dataSources));
+
+  // Pull the Logistics-layer tidal-currents check (if any) so we can surface
+  // its summary as a small inline block, separate from the gear pack list.
+  let tidalCurrentsCheck = $derived(
+    verdict.checks.find((c) => c.name === 'Tidal currents')
+  );
 </script>
 
 <article
@@ -94,6 +101,23 @@
     {#if verdict.recommendations.bailout}
       <div class="mt-2 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm">
         <strong>Bailout plan:</strong> {verdict.recommendations.bailout}
+      </div>
+    {/if}
+
+    {#if tidalCurrentsCheck}
+      <div
+        class="mt-2 rounded border border-sky-300 bg-sky-50 p-3 text-sm"
+        data-testid="tidal-currents-block"
+      >
+        <strong>Tidal currents:</strong>
+        {#if tidalCurrentsCheck.status === 'unknown'}
+          <span class="text-neutral-600">{tidalCurrentsCheck.value}</span>
+        {:else}
+          {tidalCurrentsCheck.value}
+        {/if}
+        {#if tidalCurrentsCheck.note}
+          <div class="mt-1 text-xs text-neutral-600">{tidalCurrentsCheck.note}</div>
+        {/if}
       </div>
     {/if}
 

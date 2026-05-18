@@ -19,7 +19,8 @@ describe('types', () => {
       dataSources: {
         buoy: 'not-applicable',
         nwsZone: 'missing',
-        nwsPoint: 'missing'
+        nwsPoint: 'missing',
+        currents: 'not-applicable'
       }
     };
     expect(v.verdict).toBe('GO');

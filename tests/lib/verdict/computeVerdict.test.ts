@@ -337,4 +337,57 @@ describe('computeVerdict — dataSources field', () => {
     expect(v.dataSources.buoy).toBe('missing');
     expect(v.reason).toMatch(/buoy 46244 unavailable/i);
   });
+
+  it('mad-river-slough with currents data → currents=live', () => {
+    const v = computeVerdict({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      species: 'surfperch',
+      launch: 'mad-river-slough',
+      data: {
+        ndbc46244: null, ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        tidalCurrents: {
+          station: 'HUB0203',
+          units: 'feet, knots',
+          events: [{ time: '2026-05-17T07:28', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }]
+        },
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(v.dataSources.currents).toBe('live');
+  });
+
+  it('mad-river-slough without currents data → currents=missing', () => {
+    const v = computeVerdict({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      species: 'surfperch',
+      launch: 'mad-river-slough',
+      data: {
+        ndbc46244: null, ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        tidalCurrents: null,
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(v.dataSources.currents).toBe('missing');
+  });
+
+  it('trinidad (no currentStation) → currents=not-applicable even with currents data present', () => {
+    const v = computeVerdict({
+      date: '2026-05-17',
+      today: '2026-05-17',
+      species: 'rockfish',
+      launch: 'trinidad',
+      data: {
+        ndbc46244: null, ndbc46022: null, nwsZone: null, nwsPoint: null, tides: null,
+        tidalCurrents: {
+          station: 'HUB0203',
+          units: 'feet, knots',
+          events: []
+        },
+        suntimes: { byDate: {} }
+      }
+    });
+    expect(v.dataSources.currents).toBe('not-applicable');
+  });
 });

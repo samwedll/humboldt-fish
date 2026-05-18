@@ -75,7 +75,16 @@ function summarizeDataSources({
     nwsPoint = findPointPeriodForDate(point.periods, date) ? 'live' : 'missing';
   }
 
-  return { buoy, nwsZone, nwsPoint };
+  // Tidal currents only "apply" to launches with a currentStation set
+  // (slough + bay interior). Trinidad / lagoons: not-applicable.
+  let currents: SourcePresence;
+  if (!profile.currentStation) {
+    currents = 'not-applicable';
+  } else {
+    currents = data.tidalCurrents ? 'live' : 'missing';
+  }
+
+  return { buoy, nwsZone, nwsPoint, currents };
 }
 
 export function computeVerdict(input: ComputeInput): Verdict {

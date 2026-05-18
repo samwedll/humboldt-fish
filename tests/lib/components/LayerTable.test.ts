@@ -18,7 +18,8 @@ const sample: Verdict = {
   dataSources: {
     buoy: 'not-applicable',
     nwsZone: 'missing',
-    nwsPoint: 'missing'
+    nwsPoint: 'missing',
+    currents: 'not-applicable'
   }
 };
 
