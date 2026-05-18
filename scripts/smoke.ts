@@ -4,6 +4,7 @@ import { parseNdbc } from '../src/lib/fetchers/ndbc.js';
 import { fetchNwsZone } from '../src/lib/fetchers/nws-zone.js';
 import { parseNwsPointMeta, parseNwsPointForecast } from '../src/lib/fetchers/nws-point.js';
 import { parseTides, toApiDate } from '../src/lib/fetchers/tides.js';
+import { parseCurrents } from '../src/lib/fetchers/currents.js';
 import { computeSunTimes } from '../src/lib/fetchers/suntimes.js';
 
 const HEADERS = { 'User-Agent': USER_AGENT, Accept: 'application/geo+json' };
@@ -44,6 +45,14 @@ await check('Tides 9418767 parse', async () => {
   const url = sources.tides.url(sources.tides.station, toApiDate(today), toApiDate(end));
   const res = await fetch(url);
   return parseTides(await res.json(), sources.tides.station);
+});
+await check('NOAA tidal currents HUB0203', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const end = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
+  const station = sources.currents.defaultStation;
+  const url = sources.currents.url(station, toApiDate(today), toApiDate(end));
+  const res = await fetch(url);
+  return parseCurrents(await res.json(), station);
 });
 await check('SunCalc compute', async () => {
   return computeSunTimes(['2026-05-18'], 41.0586, -124.1431);
