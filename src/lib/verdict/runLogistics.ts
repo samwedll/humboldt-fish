@@ -116,6 +116,22 @@ function fmtTime(timeStr: string): string {
   return `${timeStr.slice(11, 16)} PT`;
 }
 
+/**
+ * Shift a Pacific-local time string ("YYYY-MM-DDTHH:MM") by N minutes,
+ * returning "HH:MM PT". Does NOT go through Date(), because parsing a
+ * timezone-less string with new Date() interprets it as the host's local
+ * time (UTC on Cloudflare Workers), which produces wrong PT output.
+ */
+function shiftPacificTime(localTime: string, deltaMinutes: number): string {
+  const hm = localTime.split('T')[1] ?? localTime;
+  const [hh, mm] = hm.split(':').map(Number);
+  const totalMin = hh * 60 + mm + deltaMinutes;
+  const wrapped = ((totalMin % 1440) + 1440) % 1440;
+  const newHh = Math.floor(wrapped / 60);
+  const newMm = wrapped % 60;
+  return `${String(newHh).padStart(2, '0')}:${String(newMm).padStart(2, '0')} PT`;
+}
+
 interface CurrentsSummary {
   morningSlack?: TidalCurrentEvent;
   floodPeak?: TidalCurrentEvent;
@@ -330,6 +346,7 @@ export function runLogistics({
   }
 
   // Afternoon slack window for tide-aware launches when currents data is available.
+  // Slack times are already in Pacific local; do not parse through Date().
   if (launchProfile.currentStation && data.tidalCurrents) {
     const slacks = data.tidalCurrents.events.filter(
       (e) => e.type === 'slack' && e.time.startsWith(date)
@@ -339,13 +356,10 @@ export function runLogistics({
       return hr >= 12 && hr < 18;
     });
     if (afternoonSlack) {
-      const slackTime = new Date(afternoonSlack.time);
-      const slackLaunch = new Date(slackTime.getTime() - 30 * 60 * 1000);
-      const slackReturn = new Date(slackLaunch.getTime() + 4 * 60 * 60 * 1000);
       windows.push({
-        label: `Around ${formatPacificTime(slackTime)} slack`,
-        launchAt: formatPacificTime(slackLaunch),
-        returnBy: formatPacificTime(slackReturn),
+        label: `Around ${fmtTime(afternoonSlack.time)} slack`,
+        launchAt: shiftPacificTime(afternoonSlack.time, -30),
+        returnBy: shiftPacificTime(afternoonSlack.time, -30 + 4 * 60),
         rationale: 'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
       });
     }
