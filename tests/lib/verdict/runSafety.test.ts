@@ -299,6 +299,37 @@ describe('runSafety — protected-water launches (per-launch profile)', () => {
     expect(r.checks.find((c) => c.name === 'Swell height')).toBeUndefined();
   });
 
+  it('big-lagoon: Spit status advisory present (informational, doesn\'t gate verdict)', () => {
+    const r = runSafety({
+      date: '2026-05-17',
+      launch: 'big-lagoon',
+      data: calmBuoyData({ nwsPoint: pointFixture('2026-05-17', '5 to 7 mph') })
+    });
+    expect(r.result.status).toBe('pass');
+    const spit = r.checks.find((c) => c.name === 'Spit status');
+    expect(spit).toBeDefined();
+    expect(spit!.status).toBe('unknown');
+    expect(spit!.note).toMatch(/breach|spit/i);
+  });
+
+  it('stone-lagoon: same spit advisory present', () => {
+    const r = runSafety({
+      date: '2026-05-17',
+      launch: 'stone-lagoon',
+      data: calmBuoyData({ nwsPoint: pointFixture('2026-05-17', '5 to 7 mph') })
+    });
+    expect(r.checks.find((c) => c.name === 'Spit status')).toBeDefined();
+  });
+
+  it('freshwater-lagoon: no spit advisory (no ocean-facing spit)', () => {
+    const r = runSafety({
+      date: '2026-05-17',
+      launch: 'freshwater-lagoon',
+      data: calmBuoyData({ nwsPoint: pointFixture('2026-05-17', '5 to 7 mph') })
+    });
+    expect(r.checks.find((c) => c.name === 'Spit status')).toBeUndefined();
+  });
+
   it('mad-river-slough with calm point forecast → pass', () => {
     const r = runSafety({
       date: '2026-05-17',

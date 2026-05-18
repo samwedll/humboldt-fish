@@ -70,6 +70,25 @@ function findNwsPeriodForDate(
  * it as the primary wind source for ALL launches. Buoy 46244 has no wind
  * (wave-only buoy); 46022 is offshore and overstates sheltered-water wind.
  */
+/**
+ * Lagoon spit advisory: for launches whose sandbar can breach (Big Lagoon,
+ * Stone Lagoon), surface a `status: 'unknown'` check reminding the paddler
+ * to verify the spit visually. The Safety layer's other checks still drive
+ * the verdict; this just makes the hazard explicit. Returns null when the
+ * launch has no ocean-facing spit (Trinidad, Freshwater Lagoon, slough, bay).
+ */
+function spitAdvisory(profile: LaunchProfile): Check | null {
+  if (!profile.hasOceanFacingSpit) return null;
+  return {
+    layer: 'safety',
+    name: 'Spit status',
+    value: 'verify visually before launch',
+    threshold: 'spit closed = Tier-1 closed-water profile applies',
+    status: 'unknown',
+    note: `When ${profile.label}'s spit is open the safety profile changes substantially: currents through the breach can exceed 3 kt, ocean swell wraps into the lagoon, and the launch is no longer Tier 1. The verdict below assumes a closed spit. Verify visually (or via Humboldt Lagoons State Park advisories) before launching.`
+  };
+}
+
 function pointWindChecks(
   data: FetchedData,
   date: string,
@@ -148,7 +167,8 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
 
   // No buoy or zone, but point forecast might still cover wind
   if (pointChecks.length > 0) {
-    return synthesize(pointChecks, 'NWS point forecast');
+    const spit = spitAdvisory(profile);
+    return synthesize(spit ? [spit, ...pointChecks] : pointChecks, 'NWS point forecast');
   }
 
   return {
@@ -173,7 +193,8 @@ function runSafetyFromBuoy(
   profile: LaunchProfile,
   pointChecks: Check[]
 ): SafetyOutput {
-  const checks: Check[] = [...pointChecks];
+  const spit = spitAdvisory(profile);
+  const checks: Check[] = spit ? [spit, ...pointChecks] : [...pointChecks];
   // Buoy wind is only used if point forecast didn't supply it (e.g., fallback).
   // NDBC 46244 has no wind anyway — wave-only buoy.
   const hasPointWind = pointChecks.some((c) => c.name === 'Sustained wind');
@@ -267,7 +288,8 @@ function runSafetyFromNws(
   pointChecks: Check[]
 ): SafetyOutput {
   const p = parseMarineProse(text);
-  const checks: Check[] = [...pointChecks];
+  const spit = spitAdvisory(profile);
+  const checks: Check[] = spit ? [spit, ...pointChecks] : [...pointChecks];
   const hasPointWind = pointChecks.some((c) => c.name === 'Sustained wind');
   if (profile.requiresWindCheck && !hasPointWind && p.windHighKt !== undefined) {
     checks.push({

@@ -34,11 +34,18 @@ These are go-anywhere-anytime launches. No tide concerns, no swell, no bar. Usef
 - **Conditions:** Brackish, sheltered. Tide doesn't matter most of the year (sandbar usually closed). Wind exposure is the only real concern.
 - **Target species:** Cutthroat trout (in season), perch occasionally
 - **Use case:** When the ocean is unfishable but you want water time
-- **Solo OK?** Yes
+- **Solo OK?** Yes when spit is closed; reassess when open
+- **⚠️ Spit hazard:** The sandbar can breach naturally during heavy winter rains or be managed open by CDFW for fish passage. When the spit is open, the safety profile changes substantially:
+  - **Concentrated currents through the breach** — 3-6 kt is common; faster on big tide swings
+  - **Rapid water-level drops** with the lagoon tracking ocean tide directly
+  - **Ocean swell wraparound** — chop and even small breakers can develop near the breach
+  - **Worst-case: paddler pulled through the breach to the ocean side**, with hard return against the breach current
+  - **Verify visually before launching.** When open, treat the lagoon as Tier 2 (tidal bay), not Tier 1.
 
 ### Stone Lagoon
 - **Drive from Blue Lake:** ~30 min
 - Similar profile to Big Lagoon. Same use cases.
+- **⚠️ Spit hazard:** Stone tends to breach more reactively than Big Lagoon (smaller water volume). The cutthroat spawning closure (Nov 21 – end of Feb) overlaps with the breach-prone season because CDFW manages spit openings around fish-passage windows. Same hazards as Big Lagoon when open. Verify visually before launching.
 
 ### Mad River Slough
 - **Drive from Blue Lake:** ~10 min — closest to home

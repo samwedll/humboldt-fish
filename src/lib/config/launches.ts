@@ -27,6 +27,13 @@ export interface LaunchProfile {
    * Leave undefined for open-ocean Trinidad and the lagoons.
    */
   currentStation?: string;
+  /**
+   * True for coastal lagoons whose sandbar/spit can breach naturally or be
+   * managed open by CDFW. When the spit is open, the lagoon's safety profile
+   * changes substantially (currents through the breach, ocean swell wraparound,
+   * rapid water-level changes). The Safety layer surfaces an advisory.
+   */
+  hasOceanFacingSpit?: boolean;
   notes: string;
 }
 
@@ -60,11 +67,12 @@ export const launches: Record<LaunchId, LaunchProfile> = {
     requiresTideAwareness: false,
     requiresBarCheck: false,
     soloInYearOne: true,
+    hasOceanFacingSpit: true,
     coordinates: { lat: 41.1736, lon: -124.1394 },
     tideStation: '9418723',
     nwsZone: 'PZZ450',
     notes:
-      'Big Lagoon County Park paved ramp. Brackish, sheltered. Wind is the only weather concern.'
+      'Big Lagoon County Park paved ramp. Brackish, sheltered when the spit is closed. Wind is the only weather concern in normal closed-spit conditions.'
   },
   'stone-lagoon': {
     id: 'stone-lagoon',
@@ -77,10 +85,11 @@ export const launches: Record<LaunchId, LaunchProfile> = {
     requiresTideAwareness: false,
     requiresBarCheck: false,
     soloInYearOne: true,
+    hasOceanFacingSpit: true,
     coordinates: { lat: 41.2289, lon: -124.0975 },
     tideStation: '9418723',
     nwsZone: 'PZZ450',
-    notes: 'Like Big Lagoon. Closed for cutthroat spawning Nov 21 – end of Feb.'
+    notes: 'Like Big Lagoon. Smaller water volume — breaches more reactively. Closed for cutthroat spawning Nov 21 – end of Feb (CDFW manages spit openings around fish-passage windows).'
   },
   'mad-river-slough': {
     id: 'mad-river-slough',
