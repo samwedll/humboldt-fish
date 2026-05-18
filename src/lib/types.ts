@@ -7,13 +7,17 @@ export type Species =
   | 'california-halibut'
   | 'dungeness-crab'
   | 'pacific-halibut'
-  | 'albacore-tuna';
+  | 'albacore-tuna'
+  | 'bluegill'
+  | 'largemouth-bass'
+  | 'rainbow-trout';
 export type LaunchId =
   | 'trinidad'
   | 'big-lagoon'
   | 'stone-lagoon'
   | 'mad-river-slough'
-  | 'humboldt-bay-interior';
+  | 'humboldt-bay-interior'
+  | 'freshwater-lagoon';
 export type VerdictLabel = 'GO' | 'CONDITIONAL' | 'NO-GO' | 'INCOMPLETE';
 export type LayerStatus = 'pass' | 'warn' | 'fail' | 'incomplete';
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'unknown';
