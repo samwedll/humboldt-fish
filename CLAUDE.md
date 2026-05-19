@@ -1,6 +1,6 @@
 # Humboldt Fishing Checker
 
-A tool that answers "should I fish tomorrow?" by pulling live NOAA marine data and applying the user's personal thresholds and decision framework.
+A tool that answers "should I fish tomorrow?" by pulling live NOAA marine data and applying the user's personal thresholds and decision framework. Live at **https://humboldt.fish** (Cloudflare Pages, auto-deployed from `main`).
 
 ## Read first
 
@@ -14,6 +14,21 @@ The canonical reference for this project lives in **`reference/`** — it's a ve
 6. **`reference/decision-template.md`** — the canonical output format for go/no-go decisions
 7. **`reference/regs/`** — current-season regulation files for rockfish/lingcod and salmon
 
+## Commands
+
+```bash
+npm test            # vitest run — full suite (243+ tests)
+npm run dev         # vite dev server on http://localhost:5173
+npm run dev:clean   # kills orphan vite processes first, then starts dev
+npm run check       # svelte-check (TypeScript + Svelte)
+npm run build       # production build (Cloudflare adapter)
+npm run smoke       # hit live NOAA endpoints, validate parsers don't drift
+```
+
+Push to `main` → GitHub Actions runs `npm test` + `npm run build` + `wrangler pages deploy`. No manual deploy step.
+
+**Long-lived watchers run in the user's terminal, not via tool calls.** `npm run dev`, `dev:clean`, and `test:watch` accumulate inotify watchers and file handles. Background-spawning these from a Claude session and walking away has crashed the system before. When you need to verify UI changes, **ask the user to run `npm run dev:clean` in a fresh terminal** — don't start it yourself via Bash. Same rule for `vitest --watch`. One-shot `npm test` is fine to run via tools (terminates cleanly).
+
 ## Why this project exists
 
 The skill works fine when Claude has live access to NOAA APIs. In Claude.ai chat, the data-fetch path goes through a caching layer that serves federal endpoints stale (sometimes days old). On the user's Fedora dev box running Claude Code, `web_fetch` and `bash` execute from local network — direct hits to NOAA APIs, no cache, fresh data every time.
@@ -23,7 +38,7 @@ This tool runs on the user's dev box and gives them a green/yellow/red call with
 ## Project conventions
 
 - **Reference files are read-only inside Claude Code sessions** — they are the canonical domain knowledge. Updates to thresholds, launches, regs etc. happen in conversation with Claude.ai (where the skill lives), then get copied back into `reference/`. Do not edit them from within this project unless explicitly asked.
-- **Code lives outside `reference/`** — typically `src/` for Python, `web/` if/when a frontend is added.
+- **Code lives in `src/lib/`** — SvelteKit project. Verdict pipeline at `src/lib/verdict/` (one file per layer: `runLegal`, `runSafety`, `runQuality`, `runLogistics`, plus `computeVerdict` orchestrator). Data fetchers at `src/lib/fetchers/`. Config mirrors of reference files at `src/lib/config/`.
 - **Conservative defaults are not negotiable in-conversation.** If a threshold says ≤5 ft swell, the verdict is NO-GO at 5.1 ft. The user wrote the thresholds to bind future-self. Don't soften them at runtime.
 - **For solo trips outside Humboldt jetties: always NO-GO** in year-1 ocean regardless of conditions. This is in `thresholds.md` and is permanent until the user edits the file.
 - **Two hardcoded user rules** (in `launches.md` and `thresholds.md`):
@@ -34,16 +49,16 @@ This tool runs on the user's dev box and gives them a green/yellow/red call with
 
 ## Current phase
 
-See `HANDOFF.md` for the kickoff prompt and Phase 1 scope. The phased plan in brief:
+- **Phase 2 (shipped)**: SvelteKit web app deployed to Cloudflare Pages at https://humboldt.fish. Single-page UI, day cards with the four-layer verdict, species/launch toggles, multi-window launch recommendations.
+- **Phase 3 (next)**: Wrap the verdict core as an MCP server so Claude.ai chat can call it as a connector — permanent fix for the cache-staleness problem.
 
-- **Phase 1 (current)**: Python CLI on the user's dev box. Takes a target species + date (or "tomorrow"), pulls live NOAA data, renders the four-layer table to terminal.
-- **Phase 2**: Static HTML/JS frontend for mobile use, deployed to Cloudflare Pages or similar. Accepts a zip code so the data layer generalizes.
-- **Phase 3**: Wrap as an MCP server so Claude.ai chat can call it as a connector — permanent fix for the caching problem.
+Latest session snapshot at `docs/superpowers/handoffs/`. The original `HANDOFF.md` in the repo root is Phase-1-era; treat it as historical.
 
 ## Tech preferences (the user's style)
 
-- Python for CLI work (stdlib + requests; only add deps when they pay rent)
-- Direct API calls over MCP wrappers when MCP adds no abstraction
-- Plain markdown for human-readable output; rich/click only if it earns its keep
+- TypeScript / SvelteKit 5 (runes mode), Tailwind, Vitest 4, Zod v4
+- Direct API calls (NOAA, NWS, NDBC) over MCP wrappers when MCP adds no abstraction
+- Add a dependency only when it earns its keep — stdlib first
 - Skill-style structured docs (hotline numbers, source citations, update schedules, explicit "known gaps")
-- Check local options before reaching for cloud infra
+- Conservative numerics; surface assumptions in code comments, not hidden constants
+- Domain rules belong in `reference/` (canonical) and get mirrored into `src/lib/config/` in the same commit
