@@ -140,6 +140,14 @@
             <div class="flex items-start justify-between gap-2">
               <div class="flex-1">
                 <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
+                {#if w.tide}
+                  <div class="mt-1 text-xs text-sky-700">🌊 {w.tide.description}</div>
+                {/if}
+                {#if w.warning}
+                  <div class="mt-1 inline-block rounded border border-yellow-300 bg-yellow-50 px-2 py-0.5 text-xs text-yellow-900">
+                    ⚠ {w.warning}
+                  </div>
+                {/if}
                 {#if w.rationale}
                   <div class="mt-1 text-xs text-neutral-600">{w.rationale}</div>
                 {/if}

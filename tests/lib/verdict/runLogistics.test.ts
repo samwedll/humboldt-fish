@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { runLogistics } from '../../../src/lib/verdict/runLogistics.js';
+import {
+  runLogistics,
+  annotateWindowWithTide,
+  clampReturnByForEbb,
+  buildMorningSlackWindow
+} from '../../../src/lib/verdict/runLogistics.js';
 import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
 import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
 
@@ -359,7 +364,7 @@ describe('runLogistics — multiple launch windows', () => {
     expect(windows.map((w) => w.label)).toEqual(['Morning', 'Evening']);
   });
 
-  it('Mad River Slough with afternoon slack data: 3 windows (morning + evening + slack)', () => {
+  it('Mad River Slough with afternoon slack data: 4 windows (morning + morning-slack + evening + slack)', () => {
     const r = runLogistics({
       species: 'surfperch',
       date: '2026-05-18',
@@ -376,7 +381,7 @@ describe('runLogistics — multiple launch windows', () => {
       })
     });
     const windows = r.recommendations.windows!;
-    expect(windows.length).toBe(3);
+    expect(windows.length).toBe(4);
     expect(windows.find((w) => /slack/i.test(w.label))).toBeDefined();
   });
 
@@ -395,5 +400,392 @@ describe('runLogistics — multiple launch windows', () => {
   it('legacy `window` string is still populated for backward compat', () => {
     const r = runLogistics({ species: 'cutthroat', date: '2026-05-18', launch: 'big-lagoon', data: dataWith(sun2026_05_18) });
     expect(r.recommendations.window).toMatch(/Launch.*return by.*4-hour/);
+  });
+
+  it('bay launch with clean flood morning: window has tide annotation, no warning, no clamp', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T08:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T12:00', type: 'flood', velocityKt: 1.8, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T15:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    const morning = r.recommendations.windows!.find((w) => w.label === 'Morning');
+    expect(morning).toBeDefined();
+    expect(morning!.tide).toBeDefined();
+    expect(morning!.warning).toBeUndefined();
+    expect(morning!.returnBy).toBe('10:00 PT');
+  });
+
+  it('bay launch with ebb-heavy morning: window has warning + clamped returnBy', () => {
+    const sun2026_05_21 = {
+      byDate: {
+        '2026-05-21': {
+          civilDawn: '2026-05-21T12:30:00Z',
+          sunrise: '2026-05-21T13:05:00Z',
+          sunset: '2026-05-22T03:30:00Z',
+          civilDusk: '2026-05-22T04:00:00Z'
+        }
+      }
+    };
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-21',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_21, currentsFixture)
+    });
+    const morning = r.recommendations.windows!.find((w) => w.label === 'Morning');
+    expect(morning).toBeUndefined(); // launch already in rising ebb → suppressed
+  });
+
+  it('bay launch tide-rich day: up to 4 windows surfaced', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T07:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T10:00', type: 'flood', velocityKt: 1.2, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T13:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T15:30', type: 'ebb', velocityKt: -1.0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T19:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    const labels = r.recommendations.windows!.map((w) => w.label);
+    expect(labels).toContain('Morning');
+    expect(labels).toContain('Evening');
+    expect(labels.some((l) => /07:30 slack/i.test(l))).toBe(true);
+    expect(labels.some((l) => /13:00 slack/i.test(l))).toBe(true);
+    expect(r.recommendations.windows!.length).toBe(4);
+  });
+
+  it('slack-anchored windows are annotated but never warned', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T07:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T10:00', type: 'flood', velocityKt: 1.2, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T13:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T15:30', type: 'ebb', velocityKt: -1.0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T17:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    const slack = r.recommendations.windows!.find((w) => /slack/i.test(w.label));
+    expect(slack).toBeDefined();
+    expect(slack!.tide).toBeDefined();
+    expect(slack!.warning).toBeUndefined();
+  });
+
+  it('Trinidad: no tide annotation on its windows (no currentStation)', () => {
+    const r = runLogistics({
+      species: 'rockfish',
+      date: '2026-05-18',
+      launch: 'trinidad',
+      data: dataWith(sun2026_05_18, currentsFixture)
+    });
+    for (const w of r.recommendations.windows!) {
+      expect(w.tide).toBeUndefined();
+      expect(w.warning).toBeUndefined();
+    }
+  });
+
+  it('bay launch flood > 3.0 kt: window gets flood warning but no clamp', () => {
+    const sun = {
+      byDate: {
+        '2026-05-18': {
+          civilDawn: '2026-05-18T12:30:00Z',
+          sunrise: '2026-05-18T13:05:00Z',
+          sunset: '2026-05-19T03:30:00Z',
+          civilDusk: '2026-05-19T04:00:00Z'
+        }
+      }
+    };
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T16:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T19:00', type: 'flood', velocityKt: 3.4, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T22:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    const evening = r.recommendations.windows!.find((w) => w.label === 'Evening');
+    expect(evening).toBeDefined();
+    expect(evening!.warning).toMatch(/flood/i);
+    expect(evening!.warning).toMatch(/3\.4 kt/);
+    expect(evening!.returnBy).toBe('21:00 PT');
+  });
+
+  it('evening window symmetric to morning: demoted + clamped on a soft late ebb', () => {
+    const sun = {
+      byDate: {
+        '2026-05-18': {
+          civilDawn: '2026-05-18T12:30:00Z',
+          sunrise: '2026-05-18T13:05:00Z',
+          sunset: '2026-05-19T03:30:00Z',
+          civilDusk: '2026-05-19T04:00:00Z'
+        }
+      }
+    };
+    // Peak at 20:30 (-1.6 kt) inside the 17:00–21:00 window. With slack 16:30,
+    // span = 240 min, sinusoidal frac for 1.5/1.6 kt:
+    //   frac = (2/pi)*asin(0.9375) ≈ 0.7699
+    //   crossing = floor(990 + 240*0.7699) = 1175 → 19:35
+    //   clamped  = 1175 - 15 = 1160 → 19:20 PT
+    //   trip     = 17:00 → 19:20 = 2h20m > 2h ✓
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T16:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T20:30', type: 'ebb', velocityKt: -1.6, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T22:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    const evening = r.recommendations.windows!.find((w) => w.label === 'Evening');
+    expect(evening).toBeDefined();
+    expect(evening!.warning).toMatch(/ebb/i);
+    expect(evening!.warning).toMatch(/1\.6 kt/);
+    expect(evening!.returnBy).toBe('19:20 PT');
+  });
+
+  it('Big Lagoon: no tide annotation even with currents data (no currentStation)', () => {
+    const r = runLogistics({
+      species: 'cutthroat',
+      date: '2026-05-18',
+      launch: 'big-lagoon',
+      data: dataWith(sun2026_05_18, currentsFixture)
+    });
+    for (const w of r.recommendations.windows!) {
+      expect(w.tide).toBeUndefined();
+      expect(w.warning).toBeUndefined();
+    }
+  });
+
+  it('annotation tolerates non-zero-padded launchAt labels (defensive ISO reconstruction)', () => {
+    // This is a runtime-portability test: build a fixture identical to the
+    // "clean flood morning" test but check that the launchAt string parsing
+    // works regardless of whether the formatter pads hours.
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, {
+        station: 'HUB0203',
+        units: 'feet, knots',
+        events: [
+          { time: '2026-05-18T08:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T12:00', type: 'flood', velocityKt: 1.8, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T15:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+        ]
+      })
+    });
+    // The Morning window should have a valid tide annotation. If ISO
+    // reconstruction is broken, annotation produces nonsense (peakSpeedKt = 0).
+    const morning = r.recommendations.windows!.find((w) => w.label === 'Morning');
+    expect(morning).toBeDefined();
+    expect(morning!.tide).toBeDefined();
+    // Window 06:00–10:00 spans slack 08:00 → flood building. Phase = mixed.
+    expect(morning!.tide!.phase).toBe('mixed');
+  });
+
+  it('bay launch with currents missing: windows match today (no tide, no warning, no morning-slack)', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun2026_05_18, null)
+    });
+    for (const w of r.recommendations.windows!) {
+      expect(w.tide).toBeUndefined();
+      expect(w.warning).toBeUndefined();
+    }
+    expect(r.recommendations.windows!.length).toBe(2); // Morning + Evening only
+  });
+});
+
+describe('annotateWindowWithTide', () => {
+  const fixture = currentsFixture;
+
+  it('window across a flood event: phase=flood, peak detected', () => {
+    // 2026-05-17: slack 07:28, flood-peak 11:22 at 2.09 kt, slack 14:17.
+    // Window 09:00–13:00 covers the rising-flood peak.
+    const a = annotateWindowWithTide('2026-05-17T09:00', '2026-05-17T13:00', fixture);
+    expect(a.phase).toBe('flood');
+    expect(a.peakSpeedKt).toBeCloseTo(2.09, 2);
+    expect(a.peakType).toBe('flood');
+    expect(a.peakTimeLocal).toBe('11:22 PT');
+    expect(a.description).toMatch(/flood/i);
+    expect(a.description).toMatch(/2\.1 kt/);
+  });
+
+  it('window straddling a slack: phase=mixed', () => {
+    // 2026-05-17: flood-peak 11:22, slack 14:17, ebb-peak 16:32 at -1.56.
+    // Window 13:00–17:00 straddles the 14:17 slack. Ebb peak (1.56) is the
+    // only non-slack event inside the window.
+    const a = annotateWindowWithTide('2026-05-17T13:00', '2026-05-17T17:00', fixture);
+    expect(a.phase).toBe('mixed');
+    expect(a.peakSpeedKt).toBeCloseTo(1.56, 2);
+    expect(a.peakType).toBe('ebb');
+    expect(a.description).toMatch(/slack/i);
+  });
+
+  it('ebb-heavy morning window: phase=ebb, peak detected', () => {
+    // 2026-05-18: slack 01:06, ebb-peak 04:14 at -3.34 kt, slack 08:12.
+    // Window 03:00–07:00 covers ebb peak.
+    const a = annotateWindowWithTide('2026-05-18T03:00', '2026-05-18T07:00', fixture);
+    expect(a.phase).toBe('ebb');
+    expect(a.peakSpeedKt).toBeCloseTo(3.34, 2);
+    expect(a.peakType).toBe('ebb');
+    expect(a.peakTimeLocal).toBe('04:14 PT');
+  });
+
+  it('window with no events inside: defensive peakTimeLocal, no out-of-window time leakage', () => {
+    // Synthetic fixture with events only OUTSIDE the requested window range.
+    // Window 06:00–08:00. Events: ebb-peak at 04:14 (before), slack at 08:30 (just after).
+    const synth: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T04:14', type: 'ebb', velocityKt: -3.34, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T08:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const a = annotateWindowWithTide('2026-05-18T06:00', '2026-05-18T08:00', synth);
+    // peakSpeedKt = 0 (no event inside), peakType = 'slack', peakTimeLocal anchored to windowStart.
+    expect(a.peakSpeedKt).toBe(0);
+    expect(a.peakType).toBe('slack');
+    expect(a.peakTimeLocal).toBe('06:00 PT');
+    // Description must NOT reference out-of-window times like "04:14".
+    expect(a.description).not.toMatch(/04:14/);
+  });
+});
+
+describe('clampReturnByForEbb', () => {
+  const fixture = currentsFixture;
+
+  it('no ebb above threshold inside or just after window: no clamp', () => {
+    const r = clampReturnByForEbb('2026-05-17T09:00', '2026-05-17T13:00', fixture);
+    expect(r.suppressed).toBe(false);
+    expect(r.newEnd).toBe('2026-05-17T13:00');
+  });
+
+  it('ebb-heavy afternoon: clamps before threshold crossing (≥ 2h trip remaining)', () => {
+    // Slack 13:00 → ebb-peak 17:30 at -1.8 kt → slack 20:00. Span = 270 min.
+    // Sinusoidal crossing: frac = (2/pi)*asin(1.5/1.8) ≈ 0.6272
+    //   t = floor(780 + 270*0.6272) = floor(780 + 169.4) = floor(949.4) = 949 → 15:49
+    //   clamped = 949 - 15 = 934 → 15:34
+    //   trip 13:30 (810) → 15:34 (934) = 124 min = 2h4m > 2h ✓
+    const synth: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T13:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T17:30', type: 'ebb', velocityKt: -1.8, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T20:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = clampReturnByForEbb('2026-05-18T13:30', '2026-05-18T17:30', synth);
+    expect(r.suppressed).toBe(false);
+    expect(r.newEnd).toBe('2026-05-18T15:34');
+  });
+
+  it('window collapses below 2h: suppressed', () => {
+    // 2026-05-21 fixture: slack 03:29 → ebb-peak 06:30 at -2.47 → slack 10:42.
+    // Window 04:00 → 08:00. Crossing 1.5 kt at ~05:19 building. Clamped end
+    // 05:04. Trip 04:00 → 05:04 = 1h4m. Below 2h → suppress.
+    const r = clampReturnByForEbb('2026-05-21T04:00', '2026-05-21T08:00', fixture);
+    expect(r.suppressed).toBe(true);
+  });
+
+  it('launch already in hostile ebb: suppressed', () => {
+    // 2026-05-18 ebb peak 04:14 at -3.34. Launch at 04:00 is mid-ebb (already
+    // above 1.5 kt). Suppress.
+    const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', fixture);
+    expect(r.suppressed).toBe(true);
+  });
+
+  it('launch on descending side of prior ebb still hostile: suppressed', () => {
+    // Ebb peak at 03:30 (-2.5 kt), slack after at 06:30. Window 04:00–08:00.
+    // At 04:00 (descending side, 30 min past peak):
+    //   |v|(04:00) = 2.5 * (06:30 − 04:00)/(06:30 − 03:30) = 2.5 * 150/180 = 2.08 kt.
+    // Above 1.5 kt threshold → suppressed.
+    const synth: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T01:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T03:30', type: 'ebb', velocityKt: -2.5, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-05-18T06:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', synth);
+    expect(r.suppressed).toBe(true);
+  });
+});
+
+describe('buildMorningSlackWindow', () => {
+  const civilDawn = new Date('2026-05-18T12:30:00Z'); // 05:30 PT
+
+  it('returns a window when a slack falls between 04:00 and 11:00 local', () => {
+    // 2026-05-18: slack 08:12.
+    const w = buildMorningSlackWindow(currentsFixture, '2026-05-18', civilDawn);
+    expect(w).not.toBeNull();
+    expect(w!.label).toMatch(/slack/i);
+    expect(w!.launchAt).toBe('07:42 PT'); // 08:12 − 30 min
+    expect(w!.returnBy).toBe('11:42 PT');  // 07:42 + 4h
+    expect(w!.checkInBy).toBe('12:42 PT'); // returnBy + 1h
+  });
+
+  it('returns null when proposed launch is before civil dawn', () => {
+    const synthetic: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T05:45', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    // launchAt would be 05:15 — civilDawn is 05:30. Reject.
+    const w = buildMorningSlackWindow(synthetic, '2026-05-18', civilDawn);
+    expect(w).toBeNull();
+  });
+
+  it('returns null when no slack in 04:00–11:00 local', () => {
+    const synthetic: TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-05-18T13:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const w = buildMorningSlackWindow(synthetic, '2026-05-18', civilDawn);
+    expect(w).toBeNull();
   });
 });

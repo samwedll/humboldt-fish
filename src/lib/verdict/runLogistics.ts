@@ -10,7 +10,7 @@ import type {
   TidalCurrentEvent
 } from '../types.js';
 import { getLaunch } from '../config/launches.js';
-import { formatPacificTime } from '../format.js';
+import { formatPacificTime, toPacificLocalISO } from '../format.js';
 
 export interface LogisticsInput {
   species: Species;
@@ -175,6 +175,300 @@ export function summarizeCurrents(currents: TidalCurrents, date: string): Curren
   }
 
   return { morningSlack, floodPeak, ebbPeak };
+}
+
+const EBB_WARN_KT = 1.5;
+const FLOOD_WARN_KT = 3.0;
+const CLAMP_BUFFER_MIN = 15;
+const MIN_TRIP_HOURS = 2;
+
+/**
+ * "HH:MM PT" formatted from a "YYYY-MM-DDTHH:MM" Pacific-local string.
+ * Lives next to other helpers in this file so we don't ferry Date objects around.
+ */
+function ptIsoToHhmmLabel(iso: string): string {
+  return `${iso.slice(11, 16)} PT`;
+}
+
+/**
+ * Defensively normalize a "HH:MM PT" (or "H:MM PT") label to a zero-padded
+ * "HH:MM" string for ISO reconstruction. Guards against runtimes where
+ * Intl.DateTimeFormat may not zero-pad hours under en-US.
+ */
+function hhmmFromPtLabel(label: string): string {
+  const stripped = label.replace(/\s*PT\s*$/, '').trim();
+  const [hh, mm] = stripped.split(':');
+  return `${hh.padStart(2, '0')}:${(mm ?? '00').padStart(2, '0')}`;
+}
+
+/**
+ * Annotate a launch window with its dominant tide phase, peak current, and a
+ * short prose summary suitable for a UI chip.
+ *
+ * windowStart / windowEnd are Pacific-local "YYYY-MM-DDTHH:MM" strings — the
+ * same form as TidalCurrentEvent.time. String comparison is correct under that
+ * format.
+ */
+export function annotateWindowWithTide(
+  windowStart: string,
+  windowEnd: string,
+  currents: TidalCurrents
+): import('../types.js').TidePhaseAnnotation {
+  const events = currents.events;
+  const inside = events.filter((e) => e.time >= windowStart && e.time <= windowEnd);
+
+  // Determine phase. If a slack falls inside the window, the window crosses
+  // a transition: phase = 'mixed'. Otherwise, find the bracketing flood/ebb
+  // event by walking forward through events from windowStart.
+  const slackInside = inside.find((e) => e.type === 'slack');
+  let phase: 'ebb' | 'flood' | 'slack' | 'mixed';
+  if (slackInside) {
+    phase = 'mixed';
+  } else {
+    const next = events.find((e) => e.time >= windowStart);
+    if (next && next.type !== 'slack') {
+      phase = next.type;
+    } else {
+      const bracketing = [
+        ...inside,
+        ...events.filter((e) => e.time < windowStart).slice(-1),
+        ...events.filter((e) => e.time > windowEnd).slice(0, 1)
+      ];
+      const strongest = bracketing.reduce((acc, e) =>
+        Math.abs(e.velocityKt) > Math.abs(acc.velocityKt) ? e : acc,
+        bracketing[0]
+      );
+      phase = strongest.type === 'slack' ? 'slack' : strongest.type;
+    }
+  }
+
+  // Peak speed: max |velocity_major| among events inside the window. If none
+  // are inside (very short window), fall back to the larger of the two
+  // bracketing events.
+  let peakEvent: TidalCurrentEvent | undefined = inside.reduce<TidalCurrentEvent | undefined>(
+    (acc, e) => (!acc || Math.abs(e.velocityKt) > Math.abs(acc.velocityKt) ? e : acc),
+    undefined
+  );
+  if (!peakEvent) {
+    const before = events.filter((e) => e.time < windowStart).slice(-1)[0];
+    const after = events.filter((e) => e.time > windowEnd)[0];
+    peakEvent = [before, after]
+      .filter((e): e is TidalCurrentEvent => e !== undefined)
+      .reduce<TidalCurrentEvent | undefined>(
+        (acc, e) => (!acc || Math.abs(e.velocityKt) > Math.abs(acc.velocityKt) ? e : acc),
+        undefined
+      );
+  }
+  const peakInsideWindow =
+    peakEvent !== undefined &&
+    peakEvent.time >= windowStart &&
+    peakEvent.time <= windowEnd;
+  const peakSpeedKt = peakInsideWindow ? Math.abs(peakEvent!.velocityKt) : 0;
+  const peakType: 'ebb' | 'flood' | 'slack' = peakInsideWindow ? peakEvent!.type : 'slack';
+  const peakTimeLocal = peakInsideWindow ? ptIsoToHhmmLabel(peakEvent!.time) : ptIsoToHhmmLabel(windowStart);
+
+  // Description.
+  let description: string;
+  if (phase === 'mixed') {
+    const slack = inside.find((e) => e.type === 'slack')!;
+    const peak = inside.find((e) => e.type !== 'slack');
+    if (peak) {
+      const earlierPhase = peak.time < slack.time ? peak.type : (peak.type === 'flood' ? 'ebb' : 'flood');
+      const laterPhase = earlierPhase === 'flood' ? 'ebb' : 'flood';
+      description = `${earlierPhase} → slack ${slack.time.slice(11, 16)} → ${laterPhase} (peaks ${peakSpeedKt.toFixed(1)} kt at ${peak.time.slice(11, 16)})`;
+    } else {
+      description = `slack ${slack.time.slice(11, 16)} mid-window`;
+    }
+  } else if (phase === 'flood' && peakInsideWindow) {
+    description = `flood building, peaks ${peakSpeedKt.toFixed(1)} kt at ${peakTimeLocal.replace(' PT', '')}`;
+  } else if (phase === 'ebb' && peakInsideWindow) {
+    description = `ebb (peaks ${peakSpeedKt.toFixed(1)} kt at ${peakTimeLocal.replace(' PT', '')})`;
+  } else if (phase === 'flood' || phase === 'ebb') {
+    description = `${phase}-adjacent — no peak inside window`;
+  } else {
+    description = `slack`;
+  }
+
+  return { phase, peakSpeedKt, peakType, peakTimeLocal, description };
+}
+
+/**
+ * Convert "YYYY-MM-DDTHH:MM" Pacific-local string to integer minutes since
+ * an arbitrary epoch. We only diff within a single day, so a simple minute
+ * count from a fixed origin works without any timezone math.
+ */
+function ptIsoToMinutes(iso: string): number {
+  const [datePart, timePart] = iso.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm] = timePart.split(':').map(Number);
+  const daysSince2000 =
+    (y - 2000) * 365 + Math.floor((y - 2000) / 4) + (m - 1) * 31 + (d - 1);
+  return daysSince2000 * 1440 + hh * 60 + mm;
+}
+
+function minutesToPtIso(totalMinutes: number, referenceDate: string): string {
+  const refMin = ptIsoToMinutes(`${referenceDate}T00:00`);
+  const dayMin = totalMinutes - refMin;
+  if (dayMin < 0 || dayMin >= 1440) {
+    throw new Error(
+      `minutesToPtIso: totalMinutes ${totalMinutes} falls outside referenceDate ${referenceDate} (dayMin=${dayMin}). Launch windows are expected to stay within a single day.`
+    );
+  }
+  const hh = Math.floor(dayMin / 60);
+  const mm = dayMin % 60;
+  return `${referenceDate}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/**
+ * Clamp returnBy so the trip ends before ebb builds past EBB_WARN_KT. Linear
+ * interpolation between the preceding slack and the ebb peak gives a defensible
+ * crossing-time estimate; subtract CLAMP_BUFFER_MIN for paddle-home margin.
+ *
+ * Returns:
+ *   - { suppressed: false, newEnd: <ISO> } if no clamp or clamp leaves ≥ MIN_TRIP_HOURS
+ *   - { suppressed: true } if the window is shorter than MIN_TRIP_HOURS post-clamp,
+ *     OR if launch is already in hostile ebb.
+ */
+export function clampReturnByForEbb(
+  windowStart: string,
+  windowEnd: string,
+  currents: TidalCurrents
+): { newEnd: string; suppressed: boolean } {
+  const events = currents.events;
+
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type !== 'ebb' || Math.abs(e.velocityKt) <= EBB_WARN_KT) continue;
+
+    if (e.time < windowStart) {
+      // Ebb peak before window start. Check if launch is on the descending
+      // side of this peak (still above threshold).
+      const prevSlack = events.slice(0, i).reverse().find((p) => p.type === 'slack');
+      const nextSlack = events.slice(i + 1).find((p) => p.type === 'slack');
+      if (!prevSlack || !nextSlack) continue;
+      if (windowStart >= prevSlack.time && windowStart <= nextSlack.time) {
+        const launchVel = interpEbbMagnitude(
+          windowStart,
+          prevSlack.time,
+          e.time,
+          nextSlack.time,
+          Math.abs(e.velocityKt)
+        );
+        if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
+      }
+      continue;
+    }
+
+    // e.time >= windowStart. Linear-interpolate the rising-ebb side.
+    const prevSlack = events.slice(0, i).reverse().find((p) => p.type === 'slack');
+    if (!prevSlack) continue;
+
+    const slackMin = ptIsoToMinutes(prevSlack.time);
+    const peakMin = ptIsoToMinutes(e.time);
+    const startMin = ptIsoToMinutes(windowStart);
+    const endMin = ptIsoToMinutes(windowEnd);
+
+    // Launch-time velocity (only if launch is already on the rising side).
+    if (startMin >= slackMin && startMin <= peakMin) {
+      const launchFrac = (startMin - slackMin) / (peakMin - slackMin);
+      const launchVel = Math.abs(e.velocityKt) * Math.sin((Math.PI / 2) * launchFrac);
+      if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
+    }
+
+    // Threshold-crossing time on the rising side.
+    let crossingMin: number | null = null;
+    if (startMin <= peakMin && endMin >= slackMin) {
+      // Sinusoidal inversion: |v|(frac) = peakMag * sin(pi/2 * frac)
+      // => frac = (2/pi) * asin(|v| / peakMag)
+      const frac = (2 / Math.PI) * Math.asin(EBB_WARN_KT / Math.abs(e.velocityKt));
+      const t = Math.floor(slackMin + (peakMin - slackMin) * frac);
+      if (t >= startMin && t <= endMin) crossingMin = t;
+    }
+
+    if (crossingMin === null) continue;
+
+    const clampedEndMin = crossingMin - CLAMP_BUFFER_MIN;
+    if (clampedEndMin <= startMin || (clampedEndMin - startMin) < MIN_TRIP_HOURS * 60) {
+      return { suppressed: true, newEnd: windowEnd };
+    }
+    const dateRef = windowStart.slice(0, 10);
+    return { newEnd: minutesToPtIso(clampedEndMin, dateRef), suppressed: false };
+  }
+
+  return { newEnd: windowEnd, suppressed: false };
+}
+
+/**
+ * Sinusoidal magnitude model for a slack-peak-slack ebb half-cycle.
+ * Linear interp under-estimates current near the peak by ~10-15%, which makes
+ * the clamp fire slightly later than it should (less safe). Using
+ * peakMag * sin(pi/2 * t_frac) on each half puts magnitude growth right where
+ * tides actually grow fastest — near slack — and flattens near the peak.
+ */
+function interpEbbMagnitude(
+  t: string,
+  slackBefore: string,
+  peak: string,
+  slackAfter: string,
+  peakMag: number
+): number {
+  const tMin = ptIsoToMinutes(t);
+  const slackBeforeMin = ptIsoToMinutes(slackBefore);
+  const peakMin = ptIsoToMinutes(peak);
+  const slackAfterMin = ptIsoToMinutes(slackAfter);
+  if (tMin <= peakMin) {
+    const frac = (tMin - slackBeforeMin) / (peakMin - slackBeforeMin);
+    return peakMag * Math.sin((Math.PI / 2) * frac);
+  } else {
+    const frac = (slackAfterMin - tMin) / (slackAfterMin - peakMin);
+    return peakMag * Math.sin((Math.PI / 2) * frac);
+  }
+}
+
+/**
+ * Build a slack-anchored morning launch window. Symmetric counterpart to the
+ * existing afternoon-slack block in runLogistics. Looks for a slack in
+ * 04:00–11:00 Pacific local on `date`. Skips if the proposed launchAt would
+ * be before civilDawn.
+ */
+export function buildMorningSlackWindow(
+  currents: TidalCurrents,
+  date: string,
+  civilDawn: Date
+): LaunchWindow | null {
+  const morningSlack = currents.events.find(
+    (e) =>
+      e.type === 'slack' &&
+      e.time.startsWith(date) &&
+      hourOf(e.time) >= 4 &&
+      hourOf(e.time) <= 11
+  );
+  if (!morningSlack) return null;
+
+  const launchAtIso = shiftPtIso(morningSlack.time, -30);
+  const civilDawnIso = toPacificLocalISO(civilDawn);
+  if (launchAtIso < civilDawnIso) return null;
+
+  const launchAt = `${launchAtIso.slice(11, 16)} PT`;
+  const returnByIso = shiftPtIso(launchAtIso, 4 * 60);
+  const returnBy = `${returnByIso.slice(11, 16)} PT`;
+  const checkInByIso = shiftPtIso(returnByIso, 60);
+  const checkInBy = `${checkInByIso.slice(11, 16)} PT`;
+
+  return {
+    label: `Around ${morningSlack.time.slice(11, 16)} slack`,
+    launchAt,
+    returnBy,
+    checkInBy,
+    rationale:
+      'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
+  };
+}
+
+/** Shift a "YYYY-MM-DDTHH:MM" PT-local string by N minutes (positive or negative). */
+function shiftPtIso(iso: string, deltaMinutes: number): string {
+  const totalMin = ptIsoToMinutes(iso) + deltaMinutes;
+  return minutesToPtIso(totalMin, iso.slice(0, 10));
 }
 
 const SPECIES_RISK: Partial<Record<Species, string>> = {
@@ -349,9 +643,17 @@ export function runLogistics({
     }
   }
 
-  // Afternoon slack window for tide-aware launches when currents data is available.
-  // Slack times are already in Pacific local; do not parse through Date().
-  if (launchProfile.currentStation && data.tidalCurrents) {
+  // ============================================================
+  // Slack-anchored windows + tide annotation + clamp
+  // ============================================================
+
+  // 1. Build morning + afternoon slack windows when available.
+  if (launchProfile.currentStation && data.tidalCurrents && sun) {
+    const civilDawn = new Date(sun.civilDawn);
+    const morningSlack = buildMorningSlackWindow(data.tidalCurrents, date, civilDawn);
+    if (morningSlack) windows.push(morningSlack);
+
+    // Afternoon slack window (existing behavior, kept).
     const slacks = data.tidalCurrents.events.filter(
       (e) => e.type === 'slack' && e.time.startsWith(date)
     );
@@ -361,13 +663,72 @@ export function runLogistics({
     });
     if (afternoonSlack) {
       windows.push({
-        label: `Around ${fmtTime(afternoonSlack.time)} slack`,
+        label: `Around ${afternoonSlack.time.slice(11, 16)} slack`,
         launchAt: shiftPacificTime(afternoonSlack.time, -30),
         returnBy: shiftPacificTime(afternoonSlack.time, -30 + 4 * 60),
         checkInBy: shiftPacificTime(afternoonSlack.time, -30 + 5 * 60),
         rationale: 'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
       });
     }
+  }
+
+  // 2. Annotate dawn/dusk windows + clamp returnBy + set warnings.
+  if (launchProfile.currentStation && data.tidalCurrents) {
+    const annotated: LaunchWindow[] = [];
+    for (const w of windows) {
+      const isSlackAnchored = /slack/i.test(w.label);
+
+      // Reconstruct the window's [launchStart, launchEnd] as Pacific-local ISO.
+      const launchIso = `${date}T${hhmmFromPtLabel(w.launchAt)}`;
+      const returnIso = `${date}T${hhmmFromPtLabel(w.returnBy)}`;
+
+      // Annotate against the pre-clamp range.
+      const tide = annotateWindowWithTide(launchIso, returnIso, data.tidalCurrents);
+      const annotatedW: LaunchWindow = { ...w, tide };
+
+      if (isSlackAnchored) {
+        // Slack-anchored windows skip warning + clamp by design. The window
+        // is built around slack ± 30 min with a 4h trailing range. This
+        // implicitly assumes the post-slack half-cycle is the SAFE direction
+        // (flood inbound or moderate ebb), which holds for the typical
+        // semidiurnal pattern at HUB0203 (slack → flood → slack → ebb).
+        // If NOAA ever returns a slack between two ebbs (rare; mixed
+        // semidiurnal phase inversion), a slack-anchored window could put
+        // the kayaker returning through ebb without a warning. Watch for
+        // this in real-trip data; consider adding clamp logic here if a
+        // counter-example shows up.
+        annotated.push(annotatedW);
+        continue;
+      }
+
+      // Pre-clamp warning check: drive off peakType, not phase.
+      if (tide.peakType === 'ebb' && tide.peakSpeedKt > EBB_WARN_KT) {
+        annotatedW.warning = `ebb peaks ${tide.peakSpeedKt.toFixed(1)} kt at ${tide.peakTimeLocal.replace(' PT', '')} — return through building current`;
+      } else if (tide.peakType === 'flood' && tide.peakSpeedKt > FLOOD_WARN_KT) {
+        annotatedW.warning = `flood peaks ${tide.peakSpeedKt.toFixed(1)} kt at ${tide.peakTimeLocal.replace(' PT', '')} — control trade-off on assist`;
+      }
+
+      // Clamp returnBy + suppress check.
+      const clamp = clampReturnByForEbb(launchIso, returnIso, data.tidalCurrents);
+      if (clamp.suppressed) continue;
+      if (clamp.newEnd !== returnIso) {
+        const newReturnHhmm = `${clamp.newEnd.slice(11, 16)} PT`;
+        annotatedW.returnBy = newReturnHhmm;
+        const newCheckMinutes = ptIsoToMinutes(clamp.newEnd) + 60;
+        const dayStartMin = ptIsoToMinutes(`${date}T00:00`);
+        if (newCheckMinutes - dayStartMin < 1440) {
+          const newCheckIso = minutesToPtIso(newCheckMinutes, date);
+          annotatedW.checkInBy = `${newCheckIso.slice(11, 16)} PT`;
+        } else {
+          // Would cross midnight — cap at 23:59 PT rather than throwing.
+          annotatedW.checkInBy = '23:59 PT';
+        }
+      }
+
+      annotated.push(annotatedW);
+    }
+    windows.length = 0;
+    windows.push(...annotated);
   }
 
   // Legacy single-window string for any consumer that hasn't migrated.

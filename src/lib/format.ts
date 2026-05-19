@@ -12,6 +12,16 @@ const PACIFIC_HHMM = new Intl.DateTimeFormat('en-US', {
   hour12: false
 });
 
+const PACIFIC_ISO = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Los_Angeles',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+});
+
 /**
  * Format a Date or ISO string as "HH:MM PT" in Pacific time.
  *
@@ -21,4 +31,19 @@ const PACIFIC_HHMM = new Intl.DateTimeFormat('en-US', {
 export function formatPacificTime(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d;
   return `${PACIFIC_HHMM.format(date)} PT`;
+}
+
+/**
+ * Format a Date as "YYYY-MM-DDTHH:MM" Pacific local. This is the comparable
+ * form for TidalCurrentEvent.time, which NOAA returns in station-local time
+ * (LST/LDT). String comparison on this format is correct.
+ *
+ * Note: en-CA gives YYYY-MM-DD,HH:MM (with a literal comma); we split + rejoin.
+ */
+export function toPacificLocalISO(d: Date): string {
+  const parts = PACIFIC_ISO.formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  // hour can come back as "24" at midnight under some locales; coerce to "00"
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`;
 }
