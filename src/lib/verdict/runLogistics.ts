@@ -370,14 +370,18 @@ export function clampReturnByForEbb(
 
     // Launch-time velocity (only if launch is already on the rising side).
     if (startMin >= slackMin && startMin <= peakMin) {
-      const launchVel = (Math.abs(e.velocityKt) * (startMin - slackMin)) / (peakMin - slackMin);
+      const launchFrac = (startMin - slackMin) / (peakMin - slackMin);
+      const launchVel = Math.abs(e.velocityKt) * Math.sin((Math.PI / 2) * launchFrac);
       if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
     }
 
     // Threshold-crossing time on the rising side.
     let crossingMin: number | null = null;
     if (startMin <= peakMin && endMin >= slackMin) {
-      const t = slackMin + ((peakMin - slackMin) * EBB_WARN_KT) / Math.abs(e.velocityKt);
+      // Sinusoidal inversion: |v|(frac) = peakMag * sin(pi/2 * frac)
+      // => frac = (2/pi) * asin(|v| / peakMag)
+      const frac = (2 / Math.PI) * Math.asin(EBB_WARN_KT / Math.abs(e.velocityKt));
+      const t = Math.floor(slackMin + (peakMin - slackMin) * frac);
       if (t >= startMin && t <= endMin) crossingMin = t;
     }
 
@@ -394,6 +398,13 @@ export function clampReturnByForEbb(
   return { newEnd: windowEnd, suppressed: false };
 }
 
+/**
+ * Sinusoidal magnitude model for a slack-peak-slack ebb half-cycle.
+ * Linear interp under-estimates current near the peak by ~10-15%, which makes
+ * the clamp fire slightly later than it should (less safe). Using
+ * peakMag * sin(pi/2 * t_frac) on each half puts magnitude growth right where
+ * tides actually grow fastest — near slack — and flattens near the peak.
+ */
 function interpEbbMagnitude(
   t: string,
   slackBefore: string,
@@ -406,9 +417,11 @@ function interpEbbMagnitude(
   const peakMin = ptIsoToMinutes(peak);
   const slackAfterMin = ptIsoToMinutes(slackAfter);
   if (tMin <= peakMin) {
-    return (peakMag * (tMin - slackBeforeMin)) / (peakMin - slackBeforeMin);
+    const frac = (tMin - slackBeforeMin) / (peakMin - slackBeforeMin);
+    return peakMag * Math.sin((Math.PI / 2) * frac);
   } else {
-    return (peakMag * (slackAfterMin - tMin)) / (slackAfterMin - peakMin);
+    const frac = (slackAfterMin - tMin) / (slackAfterMin - peakMin);
+    return peakMag * Math.sin((Math.PI / 2) * frac);
   }
 }
 
@@ -674,7 +687,16 @@ export function runLogistics({
       const annotatedW: LaunchWindow = { ...w, tide };
 
       if (isSlackAnchored) {
-        // No clamp, no warning for slack-anchored.
+        // Slack-anchored windows skip warning + clamp by design. The window
+        // is built around slack ± 30 min with a 4h trailing range. This
+        // implicitly assumes the post-slack half-cycle is the SAFE direction
+        // (flood inbound or moderate ebb), which holds for the typical
+        // semidiurnal pattern at HUB0203 (slack → flood → slack → ebb).
+        // If NOAA ever returns a slack between two ebbs (rare; mixed
+        // semidiurnal phase inversion), a slack-anchored window could put
+        // the kayaker returning through ebb without a warning. Watch for
+        // this in real-trip data; consider adding clamp logic here if a
+        // counter-example shows up.
         annotated.push(annotatedW);
         continue;
       }

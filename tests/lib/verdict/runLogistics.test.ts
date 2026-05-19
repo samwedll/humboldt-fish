@@ -549,6 +549,12 @@ describe('runLogistics — multiple launch windows', () => {
         }
       }
     };
+    // Peak at 20:30 (-1.6 kt) inside the 17:00–21:00 window. With slack 16:30,
+    // span = 240 min, sinusoidal frac for 1.5/1.6 kt:
+    //   frac = (2/pi)*asin(0.9375) ≈ 0.7699
+    //   crossing = floor(990 + 240*0.7699) = 1175 → 19:35
+    //   clamped  = 1175 - 15 = 1160 → 19:20 PT
+    //   trip     = 17:00 → 19:20 = 2h20m > 2h ✓
     const r = runLogistics({
       species: 'surfperch',
       date: '2026-05-18',
@@ -558,7 +564,7 @@ describe('runLogistics — multiple launch windows', () => {
         units: 'feet, knots',
         events: [
           { time: '2026-05-18T16:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
-          { time: '2026-05-18T20:30', type: 'ebb', velocityKt: -1.8, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+          { time: '2026-05-18T20:30', type: 'ebb', velocityKt: -1.6, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
           { time: '2026-05-18T22:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
         ]
       })
@@ -566,8 +572,8 @@ describe('runLogistics — multiple launch windows', () => {
     const evening = r.recommendations.windows!.find((w) => w.label === 'Evening');
     expect(evening).toBeDefined();
     expect(evening!.warning).toMatch(/ebb/i);
-    expect(evening!.warning).toMatch(/1\.8 kt/);
-    expect(evening!.returnBy).toBe('19:35 PT');
+    expect(evening!.warning).toMatch(/1\.6 kt/);
+    expect(evening!.returnBy).toBe('19:20 PT');
   });
 
   it('Big Lagoon: no tide annotation even with currents data (no currentStation)', () => {
@@ -692,6 +698,11 @@ describe('clampReturnByForEbb', () => {
   });
 
   it('ebb-heavy afternoon: clamps before threshold crossing (≥ 2h trip remaining)', () => {
+    // Slack 13:00 → ebb-peak 17:30 at -1.8 kt → slack 20:00. Span = 270 min.
+    // Sinusoidal crossing: frac = (2/pi)*asin(1.5/1.8) ≈ 0.6272
+    //   t = floor(780 + 270*0.6272) = floor(780 + 169.4) = floor(949.4) = 949 → 15:49
+    //   clamped = 949 - 15 = 934 → 15:34
+    //   trip 13:30 (810) → 15:34 (934) = 124 min = 2h4m > 2h ✓
     const synth: TidalCurrents = {
       station: 'HUB0203',
       units: 'feet, knots',
@@ -703,7 +714,7 @@ describe('clampReturnByForEbb', () => {
     };
     const r = clampReturnByForEbb('2026-05-18T13:30', '2026-05-18T17:30', synth);
     expect(r.suppressed).toBe(false);
-    expect(r.newEnd).toBe('2026-05-18T16:30');
+    expect(r.newEnd).toBe('2026-05-18T15:34');
   });
 
   it('window collapses below 2h: suppressed', () => {
