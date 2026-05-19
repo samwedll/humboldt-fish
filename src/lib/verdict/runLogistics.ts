@@ -273,9 +273,18 @@ export function annotateWindowWithTide(
     const slack = inside.find((e) => e.type === 'slack')!;
     const peak = inside.find((e) => e.type !== 'slack');
     if (peak) {
-      const earlierPhase = peak.time < slack.time ? peak.type : (peak.type === 'flood' ? 'ebb' : 'flood');
-      const laterPhase = earlierPhase === 'flood' ? 'ebb' : 'flood';
-      description = `${earlierPhase} → slack ${slack.time.slice(11, 16)} → ${laterPhase} (peaks ${peakSpeedKt.toFixed(1)} kt at ${peak.time.slice(11, 16)})`;
+      // Render the peak parenthetical adjacent to the phase it actually belongs
+      // to (peak.type), not to the trailing phase — otherwise readers parse
+      // "→ ebb (peaks 1.7 kt)" as describing the ebb when the magnitude is
+      // actually on the preceding flood.
+      const peakStr = `(peaks ${peakSpeedKt.toFixed(1)} kt at ${peak.time.slice(11, 16)})`;
+      const otherPhase = peak.type === 'flood' ? 'ebb' : 'flood';
+      const slackTime = slack.time.slice(11, 16);
+      if (peak.time < slack.time) {
+        description = `${peak.type} ${peakStr} → slack ${slackTime} → ${otherPhase}`;
+      } else {
+        description = `${otherPhase} → slack ${slackTime} → ${peak.type} ${peakStr}`;
+      }
     } else {
       description = `slack ${slack.time.slice(11, 16)} mid-window`;
     }
