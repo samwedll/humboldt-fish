@@ -201,6 +201,11 @@ function hhmmFromPtLabel(label: string): string {
   return `${hh.padStart(2, '0')}:${(mm ?? '00').padStart(2, '0')}`;
 }
 
+/** Integer launch hour (0–23) parsed from an "HH:MM PT" label. */
+function launchHourOf(label: string): number {
+  return Number(hhmmFromPtLabel(label).slice(0, 2));
+}
+
 /**
  * Annotate a launch window with its dominant tide phase, peak current, and a
  * short prose summary suitable for a UI chip.
@@ -335,14 +340,16 @@ function minutesToPtIso(totalMinutes: number, referenceDate: string): string {
  *
  * Returns:
  *   - { suppressed: false, newEnd: <ISO> } if no clamp or clamp leaves ≥ MIN_TRIP_HOURS
- *   - { suppressed: true } if the window is shorter than MIN_TRIP_HOURS post-clamp,
- *     OR if launch is already in hostile ebb.
+ *   - { suppressed: true, reason } if the window is shorter than MIN_TRIP_HOURS post-clamp,
+ *     OR if launch is already in hostile ebb. `reason` is a short human-readable
+ *     explanation suitable for a greyed-out window stub.
  */
 export function clampReturnByForEbb(
   windowStart: string,
   windowEnd: string,
   currents: TidalCurrents
-): { newEnd: string; suppressed: boolean } {
+): { newEnd: string; suppressed: boolean; reason?: string } {
+  const hostileEbbReason = `launch is already in a building ebb (> ${EBB_WARN_KT} kt) — the return leg would fight the current`;
   const events = currents.events;
 
   for (let i = 0; i < events.length; i++) {
@@ -363,7 +370,8 @@ export function clampReturnByForEbb(
           nextSlack.time,
           Math.abs(e.velocityKt)
         );
-        if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
+        if (launchVel > EBB_WARN_KT)
+          return { suppressed: true, newEnd: windowEnd, reason: hostileEbbReason };
       }
       continue;
     }
@@ -381,7 +389,8 @@ export function clampReturnByForEbb(
     if (startMin >= slackMin && startMin <= peakMin) {
       const launchFrac = (startMin - slackMin) / (peakMin - slackMin);
       const launchVel = Math.abs(e.velocityKt) * Math.sin((Math.PI / 2) * launchFrac);
-      if (launchVel > EBB_WARN_KT) return { suppressed: true, newEnd: windowEnd };
+      if (launchVel > EBB_WARN_KT)
+        return { suppressed: true, newEnd: windowEnd, reason: hostileEbbReason };
     }
 
     // Threshold-crossing time on the rising side.
@@ -398,7 +407,12 @@ export function clampReturnByForEbb(
 
     const clampedEndMin = crossingMin - CLAMP_BUFFER_MIN;
     if (clampedEndMin <= startMin || (clampedEndMin - startMin) < MIN_TRIP_HOURS * 60) {
-      return { suppressed: true, newEnd: windowEnd };
+      const crossingLabel = `${minutesToPtIso(crossingMin, windowStart.slice(0, 10)).slice(11, 16)} PT`;
+      return {
+        suppressed: true,
+        newEnd: windowEnd,
+        reason: `ebb builds past ${EBB_WARN_KT} kt by ~${crossingLabel} — a safe trip would be under ${MIN_TRIP_HOURS} h`
+      };
     }
     const dateRef = windowStart.slice(0, 10);
     return { newEnd: minutesToPtIso(clampedEndMin, dateRef), suppressed: false };
@@ -437,8 +451,12 @@ function interpEbbMagnitude(
 /**
  * Build a slack-anchored morning launch window. Symmetric counterpart to the
  * existing afternoon-slack block in runLogistics. Looks for a slack in
- * 04:00–11:00 Pacific local on `date`. Skips if the proposed launchAt would
- * be before civilDawn.
+ * 04:00–11:00 Pacific local on `date`.
+ *
+ * Returns null only when there is no qualifying morning slack at all. When a
+ * slack exists but launching ~30 min ahead of it would fall before civil dawn,
+ * the window is returned as a *suppressed stub* (not dropped) so the UI can show
+ * the user why no morning-slack launch is offered.
  */
 export function buildMorningSlackWindow(
   currents: TidalCurrents,
@@ -456,7 +474,6 @@ export function buildMorningSlackWindow(
 
   const launchAtIso = shiftPtIso(morningSlack.time, -30);
   const civilDawnIso = toPacificLocalISO(civilDawn);
-  if (launchAtIso < civilDawnIso) return null;
 
   const launchAt = `${launchAtIso.slice(11, 16)} PT`;
   const returnByIso = shiftPtIso(launchAtIso, 4 * 60);
@@ -464,7 +481,7 @@ export function buildMorningSlackWindow(
   const checkInByIso = shiftPtIso(returnByIso, 60);
   const checkInBy = `${checkInByIso.slice(11, 16)} PT`;
 
-  return {
+  const window: LaunchWindow = {
     label: `Around ${morningSlack.time.slice(11, 16)} slack`,
     launchAt,
     returnBy,
@@ -472,6 +489,13 @@ export function buildMorningSlackWindow(
     rationale:
       'Tide-driven — launch ~30 min before slack, fish through the turn, return on the building tide.'
   };
+
+  if (launchAtIso < civilDawnIso) {
+    window.suppressed = true;
+    window.suppressedReason = `slack ${morningSlack.time.slice(11, 16)} is before first light — launching ~30 min ahead (${launchAt}) would be before civil dawn ${civilDawnIso.slice(11, 16)} PT`;
+  }
+
+  return window;
 }
 
 /** Shift a "YYYY-MM-DDTHH:MM" PT-local string by N minutes (positive or negative). */
@@ -495,6 +519,10 @@ export function runLogistics({
 }: LogisticsInput): LogisticsOutput {
   const launchProfile = getLaunch(launch);
   const sun = data.suntimes.byDate[date];
+
+  // Held so the window-suppression logic below can append a note when a morning
+  // slack exists but no compliant morning launch window survives.
+  let tidalCurrentsCheck: Check | undefined;
 
   const checks: Check[] = [
     {
@@ -556,14 +584,15 @@ export function runLogistics({
               `ebb peaks ${fmtTime(ebbPeak.time)} at ${Math.abs(ebbPeak.velocityKt).toFixed(1)} kt`
             );
           }
-          checks.push({
+          tidalCurrentsCheck = {
             layer: 'logistics',
             name: 'Tidal currents',
             value: parts.join('; '),
             threshold: '—',
             status: 'pass',
             note: 'Launch on the last 90 min of flood or at slack. Return before the ebb builds past 1.5 kt.'
-          });
+          };
+          checks.push(tidalCurrentsCheck);
         } else {
           checks.push({
             layer: 'logistics',
@@ -706,20 +735,32 @@ export function runLogistics({
         // the kayaker returning through ebb without a warning. Watch for
         // this in real-trip data; consider adding clamp logic here if a
         // counter-example shows up.
+        //
+        // A pre-dawn slack window arrives already flagged `suppressed`; we keep
+        // it as-is so the UI renders it as a greyed stub with its reason.
         annotated.push(annotatedW);
         continue;
       }
 
-      // Pre-clamp warning check: drive off peakType, not phase.
+      // Clamp + suppression FIRST. A suppressed window is no longer dropped —
+      // it's kept as a greyed stub carrying its reason, so the user can see
+      // why a morning/evening launch isn't on offer. Warnings are only set on
+      // windows that survive (a suppressed window's reason supersedes them).
+      const clamp = clampReturnByForEbb(launchIso, returnIso, data.tidalCurrents);
+      if (clamp.suppressed) {
+        annotatedW.suppressed = true;
+        annotatedW.suppressedReason = clamp.reason;
+        annotated.push(annotatedW);
+        continue;
+      }
+
+      // Surviving window: pre-clamp warning check (drive off peakType, not phase).
       if (tide.peakType === 'ebb' && tide.peakSpeedKt > EBB_WARN_KT) {
         annotatedW.warning = `ebb peaks ${tide.peakSpeedKt.toFixed(1)} kt at ${tide.peakTimeLocal.replace(' PT', '')} — return through building current`;
       } else if (tide.peakType === 'flood' && tide.peakSpeedKt > FLOOD_WARN_KT) {
         annotatedW.warning = `flood peaks ${tide.peakSpeedKt.toFixed(1)} kt at ${tide.peakTimeLocal.replace(' PT', '')} — control trade-off on assist`;
       }
 
-      // Clamp returnBy + suppress check.
-      const clamp = clampReturnByForEbb(launchIso, returnIso, data.tidalCurrents);
-      if (clamp.suppressed) continue;
       if (clamp.newEnd !== returnIso) {
         const newReturnHhmm = `${clamp.newEnd.slice(11, 16)} PT`;
         annotatedW.returnBy = newReturnHhmm;
@@ -738,11 +779,31 @@ export function runLogistics({
     }
     windows.length = 0;
     windows.push(...annotated);
+
+    // If a morning slack exists but no LIVE morning window survived, annotate
+    // the Tidal-currents check so the card explains the mismatch the user would
+    // otherwise hit: "it reports a morning slack, yet offers no morning launch."
+    const morningSlackExists = !!summarizeCurrents(data.tidalCurrents, date).morningSlack;
+    const hasLiveMorning = windows.some((w) => !w.suppressed && launchHourOf(w.launchAt) < 12);
+    if (windows.length > 0 && morningSlackExists && !hasLiveMorning && tidalCurrentsCheck) {
+      const reasons = windows
+        .filter((w) => w.suppressed && launchHourOf(w.launchAt) < 12)
+        .map((w) => `${w.label} — ${w.suppressedReason}`);
+      const detail = reasons.length
+        ? reasons.join('; ')
+        : 'the morning currents leave no compliant 2 h trip';
+      tidalCurrentsCheck.note =
+        `${tidalCurrentsCheck.note ?? ''} No compliant morning launch window despite the slack: ${detail}.`.trim();
+    }
   }
 
-  // Legacy single-window string for any consumer that hasn't migrated.
-  const legacyWindow = windows[0]
-    ? `Launch ${windows[0].launchAt}, return by ${windows[0].returnBy} (4-hour trip cap)`
+  // Legacy single-window string for any consumer that hasn't migrated (incl. the
+  // planned MCP server). Use the first LIVE window only — when every window is
+  // suppressed there is no launchable trip, so this must be undefined rather than
+  // describe a non-launchable stub. A suppressed window must never read as launchable.
+  const legacyAnchor = windows.find((w) => !w.suppressed);
+  const legacyWindow = legacyAnchor
+    ? `Launch ${legacyAnchor.launchAt}, return by ${legacyAnchor.returnBy} (4-hour trip cap)`
     : undefined;
 
   return {
