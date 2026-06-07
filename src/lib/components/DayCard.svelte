@@ -57,6 +57,14 @@
     verdict.checks.find((c) => c.name === 'Tidal currents')
   );
 
+  // Split recommended windows into the ones the user can actually launch and the
+  // suppressed stubs (kept visible, greyed, so the reason a window is gone is
+  // never hidden — e.g. "morning slack is pre-dawn" / "ebb clamps trip under 2h").
+  let liveWindows = $derived((verdict.recommendations.windows ?? []).filter((w) => !w.suppressed));
+  let suppressedWindows = $derived(
+    (verdict.recommendations.windows ?? []).filter((w) => w.suppressed)
+  );
+
   /**
    * Compose a paste-ready float-plan message for the given window. Sam taps
    * the button, the text goes to the clipboard, and he pastes into Messages
@@ -132,10 +140,10 @@
       <LayerTable {verdict} />
     </div>
 
-    {#if verdict.recommendations.windows && verdict.recommendations.windows.length > 0}
+    {#if liveWindows.length > 0}
       <div class="mt-3 space-y-2">
         <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Recommended windows</div>
-        {#each verdict.recommendations.windows as w}
+        {#each liveWindows as w}
           <div class="rounded bg-neutral-50 p-3 text-sm">
             <div class="flex items-start justify-between gap-2">
               <div class="flex-1">
@@ -164,9 +172,33 @@
           </div>
         {/each}
       </div>
-    {:else if verdict.recommendations.window}
+    {:else if verdict.recommendations.window && suppressedWindows.length === 0}
       <div class="mt-3 rounded bg-neutral-50 p-3 text-sm">
         <strong>Window:</strong> {verdict.recommendations.window}
+      </div>
+    {/if}
+
+    {#if suppressedWindows.length > 0}
+      <div class="mt-2 space-y-2">
+        <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Not available</div>
+        {#each suppressedWindows as w}
+          <div
+            class="rounded border border-neutral-200 bg-neutral-50 p-3 text-sm opacity-60"
+            data-testid="suppressed-window"
+          >
+            <div>
+              <strong>{w.label}:</strong>
+              <!-- line-through + opacity are visual-only; sr-only conveys status to screen readers -->
+              <span class="sr-only">Unavailable — </span>
+              <span class="line-through">Launch {w.launchAt}, return by {w.returnBy}</span>
+            </div>
+            {#if w.suppressedReason}
+              <div class="mt-1 text-xs text-neutral-700">
+                <span aria-hidden="true">⛔</span> <span>{w.suppressedReason}</span>
+              </div>
+            {/if}
+          </div>
+        {/each}
       </div>
     {/if}
 

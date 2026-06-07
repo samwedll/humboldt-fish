@@ -58,6 +58,8 @@ export interface LaunchWindow {
   rationale?: string;   // short note explaining why this window
   tide?: TidePhaseAnnotation;  // populated on tide-aware launches when currents data is available
   warning?: string;            // populated when window is demoted (e.g. peak ebb in pre-clamp window > 1.5 kt)
+  suppressed?: boolean;        // true when the window can't be safely launched but is kept visible (greyed) so the reason isn't hidden
+  suppressedReason?: string;   // why it was suppressed (pre-dawn launch, ebb clamps trip under 2h, hostile ebb at launch)
 }
 
 export interface Recommendations {

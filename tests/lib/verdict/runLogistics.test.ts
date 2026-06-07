@@ -422,9 +422,13 @@ describe('runLogistics — multiple launch windows', () => {
     expect(morning!.tide).toBeDefined();
     expect(morning!.warning).toBeUndefined();
     expect(morning!.returnBy).toBe('10:00 PT');
+    // Healthy day with a live morning window: the "no compliant morning" note
+    // must NOT be appended (guards the hasLiveMorning negative branch).
+    const tc = r.checks.find((c) => c.name === 'Tidal currents');
+    expect(tc!.note).not.toMatch(/no compliant morning/i);
   });
 
-  it('bay launch with ebb-heavy morning: window has warning + clamped returnBy', () => {
+  it('bay launch with ebb-heavy morning: Morning window kept as a suppressed stub (not dropped)', () => {
     const sun2026_05_21 = {
       byDate: {
         '2026-05-21': {
@@ -442,7 +446,11 @@ describe('runLogistics — multiple launch windows', () => {
       data: dataWith(sun2026_05_21, currentsFixture)
     });
     const morning = r.recommendations.windows!.find((w) => w.label === 'Morning');
-    expect(morning).toBeUndefined(); // launch already in rising ebb → suppressed
+    // Previously this window was silently dropped; now it survives as a greyed
+    // stub so the user can see WHY the morning is unavailable.
+    expect(morning).toBeDefined();
+    expect(morning!.suppressed).toBe(true);
+    expect(morning!.suppressedReason).toMatch(/ebb/i);
   });
 
   it('bay launch tide-rich day: up to 4 windows surfaced', () => {
@@ -616,6 +624,136 @@ describe('runLogistics — multiple launch windows', () => {
     expect(morning!.tide!.phase).toBe('mixed');
   });
 
+  it('morning slack but no compliant morning window: only Evening is live, morning stubs explain why, check is annotated', () => {
+    // Reproduces 2026-06-07 at a bay launch. The morning slack (05:05) lands 8
+    // min after civil dawn (05:13), so a slack-anchored launch would be pre-dawn;
+    // AND a 1.65 kt ebb builds right after it, clamping the dawn window under 2 h.
+    // Result: a real morning slack, but no compliant morning launch window.
+    const sun = {
+      byDate: {
+        '2026-06-07': {
+          civilDawn: '2026-06-07T12:13:00Z', // 05:13 PT
+          sunrise: '2026-06-07T12:50:00Z',
+          sunset: '2026-06-08T04:00:00Z',
+          civilDusk: '2026-06-08T04:20:00Z' // 21:20 PT
+        }
+      }
+    };
+    const currents: import('../../../src/lib/types.js').TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-06-07T00:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T02:35', type: 'flood', velocityKt: 0.78, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T05:05', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T07:59', type: 'ebb', velocityKt: -1.65, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T11:39', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T16:16', type: 'flood', velocityKt: 1.24, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T19:07', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T21:33', type: 'ebb', velocityKt: -1.11, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-06-07',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun, currents)
+    });
+
+    const live = r.recommendations.windows!.filter((w) => !w.suppressed);
+    expect(live.map((w) => w.label)).toEqual(['Evening']);
+
+    // Both morning candidates survive as suppressed stubs (dawn window + pre-dawn slack).
+    const suppressed = r.recommendations.windows!.filter((w) => w.suppressed);
+    expect(suppressed.length).toBe(2);
+    expect(suppressed.every((w) => !!w.suppressedReason)).toBe(true);
+
+    const tc = r.checks.find((c) => c.name === 'Tidal currents');
+    expect(tc!.value).toMatch(/Morning slack 05:05/);
+    expect(tc!.note).toMatch(/no compliant morning/i);
+
+    // Legacy single-window string points at the live Evening window, not a stub.
+    expect(r.recommendations.window).toMatch(/Launch 17:20 PT/);
+  });
+
+  it('all windows suppressed (hostile ebb across dawn AND dusk): no live window, legacy `window` string is undefined', () => {
+    // Spring-tide-shaped day where strong ebbs clamp both the dawn and dusk
+    // twilight windows AND the morning slack is pre-dawn — every candidate dies.
+    // The legacy single-window string must be undefined, never a suppressed stub
+    // dressed up as a launchable 4-hour trip (conservative-defaults invariant).
+    const sun = {
+      byDate: {
+        '2026-06-07': {
+          civilDawn: '2026-06-07T12:13:00Z', // 05:13 PT
+          sunrise: '2026-06-07T12:50:00Z',
+          sunset: '2026-06-08T04:00:00Z',
+          civilDusk: '2026-06-08T04:20:00Z' // 21:20 PT
+        }
+      }
+    };
+    const currents: import('../../../src/lib/types.js').TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-06-07T05:05', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T07:00', type: 'ebb', velocityKt: -3.0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T10:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T16:00', type: 'ebb', velocityKt: -3.5, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T18:30', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-06-07',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun, currents)
+    });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBeGreaterThan(0);
+    expect(windows.every((w) => w.suppressed)).toBe(true);
+    expect(r.recommendations.window).toBeUndefined();
+  });
+
+  it('dawn window suppressed but a post-dawn morning slack stays live: slack offered, no "no compliant morning" note', () => {
+    // The dawn twilight window clamps on a building ebb, but the morning slack is
+    // AFTER civil dawn so its slack-anchored window is launchable. A live morning
+    // option exists → the annotation must NOT fire and the slack stays copyable.
+    const sun = {
+      byDate: {
+        '2026-06-07': {
+          civilDawn: '2026-06-07T12:13:00Z', // 05:13 PT
+          sunrise: '2026-06-07T12:50:00Z',
+          sunset: '2026-06-08T04:00:00Z',
+          civilDusk: '2026-06-08T04:20:00Z' // 21:20 PT
+        }
+      }
+    };
+    const currents: import('../../../src/lib/types.js').TidalCurrents = {
+      station: 'HUB0203',
+      units: 'feet, knots',
+      events: [
+        { time: '2026-06-07T03:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T06:00', type: 'ebb', velocityKt: -3.0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T09:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T13:00', type: 'flood', velocityKt: 1.5, meanFloodDirDeg: 21, meanEbbDirDeg: 197 },
+        { time: '2026-06-07T18:00', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
+      ]
+    };
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-06-07',
+      launch: 'humboldt-bay-interior',
+      data: dataWith(sun, currents)
+    });
+    const slackW = r.recommendations.windows!.find((w) => /09:00 slack/.test(w.label));
+    expect(slackW).toBeDefined();
+    expect(slackW!.suppressed).toBeFalsy();
+    const morning = r.recommendations.windows!.find((w) => w.label === 'Morning');
+    expect(morning!.suppressed).toBe(true);
+    const tc = r.checks.find((c) => c.name === 'Tidal currents');
+    expect(tc!.note).not.toMatch(/no compliant morning/i);
+  });
+
   it('bay launch with currents missing: windows match today (no tide, no warning, no morning-slack)', () => {
     const r = runLogistics({
       species: 'surfperch',
@@ -749,6 +887,20 @@ describe('clampReturnByForEbb', () => {
     const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', synth);
     expect(r.suppressed).toBe(true);
   });
+
+  it('min-trip suppression carries a reason naming the ebb', () => {
+    // Same scenario as "window collapses below 2h" — clamp leaves < 2 h trip.
+    const r = clampReturnByForEbb('2026-05-21T04:00', '2026-05-21T08:00', fixture);
+    expect(r.suppressed).toBe(true);
+    expect(r.reason).toMatch(/ebb/i);
+    expect(r.reason).toMatch(/2\s*h|1\.5 kt/i);
+  });
+
+  it('hostile-ebb-at-launch suppression carries a reason', () => {
+    const r = clampReturnByForEbb('2026-05-18T04:00', '2026-05-18T08:00', fixture);
+    expect(r.suppressed).toBe(true);
+    expect(r.reason).toMatch(/ebb/i);
+  });
 });
 
 describe('buildMorningSlackWindow', () => {
@@ -764,7 +916,7 @@ describe('buildMorningSlackWindow', () => {
     expect(w!.checkInBy).toBe('12:42 PT'); // returnBy + 1h
   });
 
-  it('returns null when proposed launch is before civil dawn', () => {
+  it('returns a suppressed stub (not null) when proposed launch is before civil dawn', () => {
     const synthetic: TidalCurrents = {
       station: 'HUB0203',
       units: 'feet, knots',
@@ -772,9 +924,13 @@ describe('buildMorningSlackWindow', () => {
         { time: '2026-05-18T05:45', type: 'slack', velocityKt: 0, meanFloodDirDeg: 21, meanEbbDirDeg: 197 }
       ]
     };
-    // launchAt would be 05:15 — civilDawn is 05:30. Reject.
+    // launchAt would be 05:15 — civilDawn is 05:30. Keep it as a greyed stub
+    // that explains why there is no compliant morning-slack launch.
     const w = buildMorningSlackWindow(synthetic, '2026-05-18', civilDawn);
-    expect(w).toBeNull();
+    expect(w).not.toBeNull();
+    expect(w!.launchAt).toBe('05:15 PT');
+    expect(w!.suppressed).toBe(true);
+    expect(w!.suppressedReason).toMatch(/dawn|first light|before/i);
   });
 
   it('returns null when no slack in 04:00–11:00 local', () => {
