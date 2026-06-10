@@ -8,6 +8,7 @@ import {
   buildMorningSlackWindow
 } from '../../../src/lib/verdict/runLogistics.js';
 import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
+import { formatPacificTime } from '../../../src/lib/format.js';
 import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
 
 const currentsFixture: TidalCurrents = parseCurrents(
@@ -308,6 +309,21 @@ describe('runLogistics', () => {
     });
     expect(r.checks.find((c) => c.name === 'Tide planning')).toBeUndefined();
     expect(r.checks.find((c) => c.name === 'Tidal currents')).toBeUndefined();
+  });
+
+  it('windows carry epoch-ms fields that agree with their display strings', () => {
+    const r = runLogistics({
+      species: 'rockfish',
+      date: '2026-05-18',
+      launch: 'trinidad',
+      data: data()
+    });
+    const w = r.recommendations.windows![0];
+    expect(w.launchAtMs).toBeTypeOf('number');
+    expect(formatPacificTime(new Date(w.launchAtMs!))).toBe(w.launchAt);
+    expect(formatPacificTime(new Date(w.returnByMs!))).toBe(w.returnBy);
+    expect(formatPacificTime(new Date(w.checkInByMs!))).toBe(w.checkInBy);
+    expect(w.returnByMs!).toBeGreaterThan(w.launchAtMs!);
   });
 });
 

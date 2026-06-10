@@ -10,7 +10,7 @@ import type {
   TidalCurrentEvent
 } from '../types.js';
 import { getLaunch } from '../config/launches.js';
-import { formatPacificTime, toPacificLocalISO } from '../format.js';
+import { formatPacificTime, toPacificLocalISO, ptLocalIsoToEpochMs } from '../format.js';
 
 export interface LogisticsInput {
   species: Species;
@@ -806,11 +806,21 @@ export function runLogistics({
     ? `Launch ${legacyAnchor.launchAt}, return by ${legacyAnchor.returnBy} (4-hour trip cap)`
     : undefined;
 
+  // Epoch-ms twins for client-side time-awareness. All window strings are
+  // same-date PT labels (minutesToPtIso enforces single-day; checkInBy is
+  // capped at 23:59 PT), so date + label reconstruction is safe.
+  const withMs = (w: LaunchWindow): LaunchWindow => ({
+    ...w,
+    launchAtMs: ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.launchAt)}`),
+    returnByMs: ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.returnBy)}`),
+    checkInByMs: ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.checkInBy)}`)
+  });
+
   return {
     result: { status: 'pass', summary: `${launchProfile.label}, ${species}` },
     checks,
     recommendations: {
-      windows: windows.length > 0 ? windows : undefined,
+      windows: windows.length > 0 ? windows.map(withMs) : undefined,
       window: legacyWindow,
       gear: [...BASE_GEAR, ...SPECIES_GEAR[species]]
     }

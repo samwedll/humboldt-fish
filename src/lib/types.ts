@@ -60,6 +60,11 @@ export interface LaunchWindow {
   warning?: string;            // populated when window is demoted (e.g. peak ebb in pre-clamp window > 1.5 kt)
   suppressed?: boolean;        // true when the window can't be safely launched but is kept visible (greyed) so the reason isn't hidden
   suppressedReason?: string;   // why it was suppressed (pre-dawn launch, ebb clamps trip under 2h, hostile ebb at launch)
+  // Epoch-ms twins of the display strings above — added so the client can
+  // derive past/active/upcoming state without re-parsing "HH:MM PT".
+  launchAtMs?: number;
+  returnByMs?: number;
+  checkInByMs?: number;
 }
 
 export interface Recommendations {
