@@ -51,6 +51,40 @@ export interface TidePhaseAnnotation {
   description: string;
 }
 
+/**
+ * Everything the client-side now-evaluator needs, attached to TODAY's verdict
+ * only. Times are epoch ms except tidalCurrents, which is passed through
+ * verbatim so evaluateNow can reuse the PT-local-ISO tide machinery
+ * (clampReturnByForEbb / annotateWindowWithTide) unchanged.
+ */
+export interface NowData {
+  date: string;    // PT date this payload was computed for (rollover guard)
+  dawnMs: number;  // civil dawn
+  duskMs: number;  // civil dusk
+  buoy?: NdbcObservation & { observedAtMs: number };  // open-ocean launches only
+  tidalCurrents?: TidalCurrents;                       // launches with a currentStation only
+  pointPeriods?: { startMs: number; endMs: number; windSpeed: string; windDirection: string }[];
+}
+
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  phone?: string; // rendered as a tel: link when present
+}
+
+export interface NowVerdict {
+  verdict: 'GO' | 'CONDITIONAL' | 'NO-GO';
+  reason: string;
+  nextViableAtMs?: number; // set only when the blocker is temporal AND conditions pass at that time
+  launchByMs?: number;     // latest start at which the temporal gates still pass
+  returnByMs?: number;     // min(now + 4h cap, civil dusk), possibly ebb-clamped
+  factors: Check[];        // recomputed condition checks (layer: 'safety')
+  checklist: ChecklistItem[];
+  staleness: { obsAgeMs: number | null; degraded: boolean };
+  tideContext?: string;    // e.g. "flood building, peaks 1.2 kt at 16:48"
+  footer?: string;         // canonical closing line, set on GO/CONDITIONAL
+}
+
 export interface LaunchWindow {
   label: string;        // "Morning", "Evening", "Around 13:11 slack", etc.
   launchAt: string;     // formatted local time, e.g. "05:51 PT"
@@ -94,6 +128,7 @@ export interface Verdict {
   checks: Check[];
   recommendations: Recommendations;
   dataSources: DataSources;
+  nowData?: NowData; // present only on today's verdict — input for evaluateNow
 }
 
 export interface SourceFreshness {

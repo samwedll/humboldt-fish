@@ -15,6 +15,7 @@ import { runQuality } from './runQuality.js';
 import { runLogistics } from './runLogistics.js';
 import { getLaunch } from '../config/launches.js';
 import { findPointPeriodForDate } from './parseMarineProse.js';
+import { buildNowData } from './buildNowData.js';
 
 export interface ComputeInput {
   date: string;
@@ -87,7 +88,7 @@ function summarizeDataSources({
   return { buoy, nwsZone, nwsPoint, currents };
 }
 
-export function computeVerdict(input: ComputeInput): Verdict {
+function computeVerdictCore(input: ComputeInput): Verdict {
   const { date, today = '0000-00-00', species, launch, data } = input;
   const checks: Check[] = [];
   const layers: Record<LayerName, LayerResult> = {
@@ -173,4 +174,13 @@ export function computeVerdict(input: ComputeInput): Verdict {
     recommendations: logistics.recommendations,
     dataSources
   };
+}
+
+export function computeVerdict(input: ComputeInput): Verdict {
+  const verdict = computeVerdictCore(input);
+  if (input.date === input.today) {
+    const nowData = buildNowData(input);
+    if (nowData) verdict.nowData = nowData;
+  }
+  return verdict;
 }
