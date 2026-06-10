@@ -31,4 +31,21 @@ describe('ptLocalIsoToEpochMs', () => {
     const ms = ptLocalIsoToEpochMs('2026-06-10T05:43');
     expect(toPacificLocalISO(new Date(ms))).toBe('2026-06-10T05:43');
   });
+
+  it('corrects across the spring-forward transition (second pass fires)', () => {
+    expect(ptLocalIsoToEpochMs('2026-03-08T03:30')).toBe(Date.parse('2026-03-08T10:30:00Z'));
+  });
+
+  it('corrects across the fall-back transition (second pass fires)', () => {
+    expect(ptLocalIsoToEpochMs('2026-11-01T02:30')).toBe(Date.parse('2026-11-01T10:30:00Z'));
+  });
+
+  it('resolves the fall-back ambiguous hour to its first (PDT) occurrence', () => {
+    expect(ptLocalIsoToEpochMs('2026-11-01T01:30')).toBe(Date.parse('2026-11-01T08:30:00Z'));
+  });
+
+  it('throws on malformed input instead of returning a silent wrong epoch', () => {
+    expect(() => ptLocalIsoToEpochMs('garbage')).toThrow(/bad PT-local ISO/);
+    expect(() => ptLocalIsoToEpochMs('2026-06-10T14:00:30')).toThrow(/bad PT-local ISO/);
+  });
 });
