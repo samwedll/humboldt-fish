@@ -806,15 +806,23 @@ export function runLogistics({
     ? `Launch ${legacyAnchor.launchAt}, return by ${legacyAnchor.returnBy} (4-hour trip cap)`
     : undefined;
 
-  // Epoch-ms twins for client-side time-awareness. All window strings are
-  // same-date PT labels (minutesToPtIso enforces single-day; checkInBy is
-  // capped at 23:59 PT), so date + label reconstruction is safe.
-  const withMs = (w: LaunchWindow): LaunchWindow => ({
-    ...w,
-    launchAtMs: ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.launchAt)}`),
-    returnByMs: ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.returnBy)}`),
-    checkInByMs: ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.checkInBy)}`)
-  });
+  // Epoch-ms twins for client-side time-awareness, reconstructed from the
+  // same-date "HH:MM PT" labels. Same-date holds today on every construction
+  // path (slack paths go through minutesToPtIso, which throws on day-crossing;
+  // twilight paths stay within ~05:00–22:30 at this latitude), but
+  // shiftPacificTime wraps mod-1440 silently — so assert ordering and fail
+  // loud rather than ever emitting a timestamp that marks a past window live.
+  const withMs = (w: LaunchWindow): LaunchWindow => {
+    const launchAtMs = ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.launchAt)}`);
+    const returnByMs = ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.returnBy)}`);
+    const checkInByMs = ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.checkInBy)}`);
+    if (!(launchAtMs < returnByMs && returnByMs <= checkInByMs)) {
+      throw new Error(
+        `withMs: window "${w.label}" times are out of order after ms reconstruction (${w.launchAt} / ${w.returnBy} / ${w.checkInBy} on ${date}) — likely a midnight wrap`
+      );
+    }
+    return { ...w, launchAtMs, returnByMs, checkInByMs };
+  };
 
   return {
     result: { status: 'pass', summary: `${launchProfile.label}, ${species}` },

@@ -62,6 +62,8 @@ export interface LaunchWindow {
   suppressedReason?: string;   // why it was suppressed (pre-dawn launch, ebb clamps trip under 2h, hostile ebb at launch)
   // Epoch-ms twins of the display strings above — added so the client can
   // derive past/active/upcoming state without re-parsing "HH:MM PT".
+  // Truncated to the minute to match the labels exactly (SunCalc emits
+  // seconds; the labels drop them) — don't "fix" by using raw Date.getTime().
   launchAtMs?: number;
   returnByMs?: number;
   checkInByMs?: number;

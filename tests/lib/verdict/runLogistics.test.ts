@@ -8,7 +8,7 @@ import {
   buildMorningSlackWindow
 } from '../../../src/lib/verdict/runLogistics.js';
 import { parseCurrents } from '../../../src/lib/fetchers/currents.js';
-import { formatPacificTime } from '../../../src/lib/format.js';
+import { formatPacificTime, toPacificLocalISO } from '../../../src/lib/format.js';
 import type { FetchedData, TidalCurrents } from '../../../src/lib/types.js';
 
 const currentsFixture: TidalCurrents = parseCurrents(
@@ -324,6 +324,25 @@ describe('runLogistics', () => {
     expect(formatPacificTime(new Date(w.returnByMs!))).toBe(w.returnBy);
     expect(formatPacificTime(new Date(w.checkInByMs!))).toBe(w.checkInBy);
     expect(w.returnByMs!).toBeGreaterThan(w.launchAtMs!);
+    // Date-anchored: catches a uniform whole-day shift that HH:MM agreement misses.
+    expect(toPacificLocalISO(new Date(w.launchAtMs!)).startsWith('2026-05-18')).toBe(true);
+  });
+
+  it('ms fields agree on every window of a currents launch (slack, clamped, suppressed paths)', () => {
+    const r = runLogistics({
+      species: 'surfperch',
+      date: '2026-05-18',
+      launch: 'mad-river-slough',
+      data: dataWithCurrents()
+    });
+    const windows = r.recommendations.windows!;
+    expect(windows.length).toBeGreaterThan(1);
+    for (const w of windows) {
+      expect(formatPacificTime(new Date(w.launchAtMs!))).toBe(w.launchAt);
+      expect(formatPacificTime(new Date(w.returnByMs!))).toBe(w.returnBy);
+      expect(formatPacificTime(new Date(w.checkInByMs!))).toBe(w.checkInBy);
+      expect(toPacificLocalISO(new Date(w.launchAtMs!)).startsWith('2026-05-18')).toBe(true);
+    }
   });
 });
 
