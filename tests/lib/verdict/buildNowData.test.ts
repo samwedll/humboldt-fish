@@ -65,6 +65,12 @@ describe('buildNowData', () => {
     expect(nd.buoy).toBeUndefined();
   });
 
+  it('omits the buoy when observedAt is malformed (conservative path)', () => {
+    const d = data();
+    d.ndbc46244 = { ...d.ndbc46244!, observedAt: 'not-a-date' };
+    expect(buildNowData({ date: DATE, launch: 'trinidad', data: d })!.buoy).toBeUndefined();
+  });
+
   it('returns undefined when suntimes are missing for the date', () => {
     const d = data();
     d.suntimes = { byDate: {} };

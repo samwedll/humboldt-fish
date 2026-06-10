@@ -25,7 +25,12 @@ export function buildNowData({
     duskMs: Date.parse(sun.civilDusk)
   };
   if (profile.openOcean && data.ndbc46244) {
-    nowData.buoy = { ...data.ndbc46244, observedAtMs: Date.parse(data.ndbc46244.observedAt) };
+    // A malformed observedAt must read as "buoy missing" (conservative NO-GO
+    // path), never as a NaN that JSON-nulls and disables the staleness gate.
+    const observedAtMs = Date.parse(data.ndbc46244.observedAt);
+    if (Number.isFinite(observedAtMs)) {
+      nowData.buoy = { ...data.ndbc46244, observedAtMs };
+    }
   }
   if (profile.currentStation && data.tidalCurrents) {
     nowData.tidalCurrents = data.tidalCurrents;
