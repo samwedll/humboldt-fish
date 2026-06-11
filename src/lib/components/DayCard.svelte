@@ -1,8 +1,10 @@
 <script lang="ts">
-  import type { Verdict, Species, DataSources, LaunchWindow } from '$lib/types.js';
+  import type { Verdict, Species, DataSources, LaunchWindow, NowVerdict } from '$lib/types.js';
   import VerdictPill from './VerdictPill.svelte';
   import LayerTable from './LayerTable.svelte';
+  import NowStrip from './NowStrip.svelte';
   import { regs } from '$lib/config/regs.js';
+  import { windowState } from '$lib/verdict/windowState.js';
 
   type Props = {
     verdict: Verdict;
@@ -10,8 +12,18 @@
     launchLabel: string;
     mode?: 'today' | 'row';
     lowConfidence?: boolean;
+    nowMs?: number;          // wall-clock from the page's minute tick (today mode)
+    now?: NowVerdict | null; // evaluated now-verdict (today mode)
   };
-  let { verdict, species, launchLabel, mode = 'row', lowConfidence = false }: Props = $props();
+  let { verdict, species, launchLabel, mode = 'row', lowConfidence = false, nowMs, now = null }: Props = $props();
+
+  const STATE_BADGE = { past: '▪ past', active: '● active now', upcoming: '○ upcoming' } as const;
+
+  function badgeFor(w: LaunchWindow): string | null {
+    if (mode !== 'today' || nowMs === undefined) return null;
+    const s = windowState(nowMs, w);
+    return s ? STATE_BADGE[s] : null;
+  }
 
   let expanded = $state(mode === 'today');
   let copiedLabel = $state<string | null>(null);
@@ -136,6 +148,12 @@
   {/if}
 
   {#if expanded}
+    {#if mode === 'today' && now && nowMs !== undefined}
+      <div class="mt-3">
+        <NowStrip {now} {nowMs} />
+      </div>
+    {/if}
+
     <div class="mt-3">
       <LayerTable {verdict} />
     </div>
@@ -144,10 +162,14 @@
       <div class="mt-3 space-y-2">
         <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Recommended windows</div>
         {#each liveWindows as w}
-          <div class="rounded bg-neutral-50 p-3 text-sm">
+          {@const badge = badgeFor(w)}
+          <div class={`rounded bg-neutral-50 p-3 text-sm ${badge === STATE_BADGE.past ? 'opacity-60' : ''}`}>
             <div class="flex items-start justify-between gap-2">
               <div class="flex-1">
                 <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
+                {#if badge}
+                  <span class="ml-2 text-xs text-neutral-500" data-testid="window-state">{badge}</span>
+                {/if}
                 {#if w.tide}
                   <div class="mt-1 text-xs text-sky-700">🌊 {w.tide.description}</div>
                 {/if}
@@ -191,6 +213,9 @@
               <!-- line-through + opacity are visual-only; sr-only conveys status to screen readers -->
               <span class="sr-only">Unavailable — </span>
               <span class="line-through">Launch {w.launchAt}, return by {w.returnBy}</span>
+              {#if badgeFor(w)}
+                <span class="ml-2 text-xs text-neutral-500" data-testid="window-state">{badgeFor(w)}</span>
+              {/if}
             </div>
             {#if w.suppressedReason}
               <div class="mt-1 text-xs text-neutral-700">
