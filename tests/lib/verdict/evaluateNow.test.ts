@@ -265,6 +265,28 @@ describe('evaluateNow — degraded data', () => {
     expect(r.reason).toMatch(/tide phase/i);
   });
 
+  it('buoy row with null wave height: fail closed, not a silent GO', () => {
+    const nd = trinidadNowData({
+      buoy: { ...trinidadNowData().buoy!, waveHtFt: null, dominantPeriodSec: null }
+    });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.factors.find((f) => f.name === 'Swell height')!.value).toMatch(/no wave data/);
+  });
+
+  it('stale buoy with a single wave factor still degrades to CONDITIONAL', () => {
+    const nd = trinidadNowData({
+      buoy: {
+        ...trinidadNowData().buoy!,
+        observedAt: new Date(PT('11:00')).toISOString(), observedAtMs: PT('11:00'),
+        dominantPeriodSec: null
+      }
+    });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.verdict).toBe('CONDITIONAL');
+    expect(r.factors.some((f) => f.name === 'Buoy obs age')).toBe(true);
+  });
+
   it('tide-blocked with no viable start left today reads as done for today', () => {
     // Hostile rising ebb at 14:30; only remaining slack lands past dusk−2h, so the scan is empty.
     // At 14:30, frac = (14:30−13:00)/(16:30−13:00) = 90/210 = 0.4286, vel = 2.5·sin(π/2·0.4286) ≈ 1.56 > 1.5 → hostile.

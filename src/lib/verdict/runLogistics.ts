@@ -385,6 +385,15 @@ export function clampReturnByForEbb(
     // the leading-edge gap can never overlap a permitted launch window. Skipping
     // is therefore conservative: the dangerous ebb is fully decayed by the time
     // any launch is allowed.
+    // Assumptions: ≈3.1 h slack-to-peak half-cycle, ~2.5 kt typical peak. A
+    // stretched cycle at ~3 kt spring ebb could push the decay threshold closer
+    // to ~05:45 — still ahead of dawn+30 except near-solstice edge cases where
+    // dawn+30 is as early as ~05:25. The argument holds for the overwhelming
+    // majority of tidal cycles at HUB0203; watch real-trip data for near-solstice
+    // counter-examples. The descending-side branch above (the other
+    // !prevSlack || !nextSlack continue) shares the same reachability argument:
+    // an ebb peak before windowStart with no bracketing slacks in the fetch range
+    // can only occur before ~03:06, already fully decayed by any permitted launch.
     if (!prevSlack) continue;
 
     const slackMin = ptIsoToMinutes(prevSlack.time);

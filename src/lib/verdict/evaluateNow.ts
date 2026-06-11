@@ -137,16 +137,34 @@ function buoyFactors(
     };
   }
 
-  const factors: Check[] = [];
-  if (buoy.waveHtFt !== null) {
-    factors.push({
-      layer: 'safety',
-      name: 'Swell height',
-      value: `${buoy.waveHtFt.toFixed(1)} ft`,
-      threshold: `≤ ${thresholds.swellHeightFt} ft`,
-      status: evalAbove(buoy.waveHtFt, thresholds.swellHeightFt)
-    });
+  // NDBC gaps ('MM') arrive as nulls. A buoy row with no wave height cannot
+  // verify swell at an open-ocean launch — same can't-verify-means-don't-launch
+  // rule as a missing buoy.
+  if (buoy.waveHtFt === null) {
+    return {
+      factors: [
+        {
+          layer: 'safety',
+          name: 'Swell height',
+          value: 'no wave data in latest obs',
+          threshold: `≤ ${thresholds.swellHeightFt} ft`,
+          status: 'fail',
+          note: 'Buoy 46244 reported no wave height — verify via NDBC or the USCG bar advisory before launching.'
+        }
+      ],
+      obsAgeMs: tMs - buoy.observedAtMs,
+      degraded: false
+    };
   }
+
+  const factors: Check[] = [];
+  factors.push({
+    layer: 'safety',
+    name: 'Swell height',
+    value: `${buoy.waveHtFt.toFixed(1)} ft`,
+    threshold: `≤ ${thresholds.swellHeightFt} ft`,
+    status: evalAbove(buoy.waveHtFt, thresholds.swellHeightFt)
+  });
   if (buoy.dominantPeriodSec !== null) {
     factors.push({
       layer: 'safety',
@@ -174,7 +192,16 @@ function buoyFactors(
   const degraded = obsAgeMs > NOW_BUOY_MAX_AGE_MS;
   if (degraded) {
     const ageNote = `can't confirm current conditions — buoy data ${formatAge(obsAgeMs)} old`;
-    return { factors: factors.map((f) => floorAtWarn(f, ageNote)), obsAgeMs, degraded };
+    const floored = factors.map((f) => floorAtWarn(f, ageNote));
+    floored.push({
+      layer: 'safety',
+      name: 'Buoy obs age',
+      value: formatAge(obsAgeMs),
+      threshold: '≤ 60 min for live confirmation',
+      status: 'warn',
+      note: 'Refresh before deciding; stale readings can hide deteriorating conditions.'
+    });
+    return { factors: floored, obsAgeMs, degraded };
   }
   return { factors, obsAgeMs, degraded };
 }
@@ -218,7 +245,7 @@ function windFactor(
   if (dayWind) {
     return {
       ...dayWind,
-      note: `${dayWind.note ? `${dayWind.note}; ` : ''}whole-day forecast — no point period covers the trip span`
+      note: `${dayWind.note ? `${dayWind.note}; ` : ''}whole-day forecast — no usable point-forecast wind for the trip span`
     };
   }
   return {
@@ -227,7 +254,7 @@ function windFactor(
     value: 'unverified',
     threshold: `≤ ${thresholds.windSustainedTripKt} kt`,
     status: 'warn',
-    note: 'No wind source covers the trip span — verify before launching'
+    note: 'No usable point-forecast wind for the trip span — verify before launching'
   };
 }
 

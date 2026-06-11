@@ -75,7 +75,7 @@ export interface ChecklistItem {
 export interface NowVerdict {
   verdict: 'GO' | 'CONDITIONAL' | 'NO-GO';
   reason: string;
-  nextViableAtMs?: number; // set only when the blocker is temporal AND conditions pass at that time
+  nextViableAtMs?: number; // set only when the blocker is temporal AND conditions don't fail at that time
   launchByMs?: number;     // latest start at which the temporal gates still pass
   returnByMs?: number;     // min(now + 4h cap, civil dusk), possibly ebb-clamped
   factors: Check[];        // recomputed condition checks (layer: 'safety')
