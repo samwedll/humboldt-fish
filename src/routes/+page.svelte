@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Species, LaunchId, VerdictResponse } from '$lib/types.js';
   import DayCard from '$lib/components/DayCard.svelte';
+  import { evaluateNow } from '$lib/verdict/evaluateNow.js';
   import { launches, getLaunch } from '$lib/config/launches.js';
   import { speciesLaunchCompat } from '$lib/config/species-launch.js';
   import { SPECIES_LABEL } from '$lib/config/species-labels.js';
@@ -83,6 +84,27 @@
   let days = $derived(response?.days ?? []);
   let today = $derived(days[0]);
   let rest = $derived(days.slice(1));
+
+  // Wall-clock for the Today card's time-awareness. A minute tick re-derives
+  // the now-verdict and window badges from data already in memory — no network.
+  // visibilitychange corrects instantly when the tab refocuses after a sleep.
+  let nowMs = $state(Date.now());
+  $effect(() => {
+    const tick = setInterval(() => (nowMs = Date.now()), 60_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') nowMs = Date.now();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  });
+
+  let nowVerdict = $derived(today ? evaluateNow(nowMs, today, { launch, species }) : null);
+  // evaluateNow returns null on a date mismatch — if nowData exists but the
+  // verdict is null, the tab crossed midnight PT on a stale payload.
+  let rolledOver = $derived(!!today?.nowData && nowVerdict === null);
 
   function ago(iso: string | undefined): string {
     if (!iso) return 'unavailable';
@@ -169,7 +191,13 @@
       Could not load verdicts: {pageError}. Verify NOAA directly via <a class="underline" href="tel:7078396113">USCG 707-839-6113</a> or VHF 22A.
     </div>
   {:else if today}
-    <DayCard verdict={today} {species} {launchLabel} mode="today" />
+    {#if rolledOver}
+      <div class="mb-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        This page was computed for {today?.date} and it's now past midnight —
+        <button type="button" class="underline" onclick={refresh}>refresh</button> for current verdicts.
+      </div>
+    {/if}
+    <DayCard verdict={today} {species} {launchLabel} mode="today" {nowMs} now={nowVerdict} />
 
     <h2 class="mt-5 mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">Next days</h2>
     <div class="space-y-2">
