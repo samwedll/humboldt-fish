@@ -141,4 +141,16 @@ describe('DayCard — time awareness', () => {
     });
     expect(getByTestId('now-strip')).toBeTruthy();
   });
+
+  it('badges re-derive when the nowMs prop advances (minute-tick contract)', async () => {
+    const { getAllByTestId, rerender } = render(DayCard, {
+      props: {
+        verdict: verdictWith(msWindows), species: 'surfperch',
+        launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00')
+      }
+    });
+    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['▪ past', '○ upcoming']);
+    await rerender({ nowMs: PT('18:30') });
+    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['▪ past', '● active now']);
+  });
 });

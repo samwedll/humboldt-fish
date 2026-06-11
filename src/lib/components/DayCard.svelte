@@ -17,9 +17,9 @@
   };
   let { verdict, species, launchLabel, mode = 'row', lowConfidence = false, nowMs, now = null }: Props = $props();
 
-  const STATE_BADGE = { past: '▪ past', active: '● active now', upcoming: '○ upcoming' } as const;
+  const STATE_BADGE = { past: ['▪', 'past'], active: ['●', 'active now'], upcoming: ['○', 'upcoming'] } as const;
 
-  function badgeFor(w: LaunchWindow): string | null {
+  function badgeFor(w: LaunchWindow): readonly [string, string] | null {
     if (mode !== 'today' || nowMs === undefined) return null;
     const s = windowState(nowMs, w);
     return s ? STATE_BADGE[s] : null;
@@ -168,7 +168,7 @@
               <div class="flex-1">
                 <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
                 {#if badge}
-                  <span class="ml-2 text-xs text-neutral-500" data-testid="window-state">{badge}</span>
+                  <span class="ml-2 text-xs text-neutral-500" data-testid="window-state"><span aria-hidden="true">{badge[0]}</span> {badge[1]}</span>
                 {/if}
                 {#if w.tide}
                   <div class="mt-1 text-xs text-sky-700">🌊 {w.tide.description}</div>
@@ -204,6 +204,7 @@
       <div class="mt-2 space-y-2">
         <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Not available</div>
         {#each suppressedWindows as w}
+          {@const badge = badgeFor(w)}
           <div
             class="rounded border border-neutral-200 bg-neutral-50 p-3 text-sm opacity-60"
             data-testid="suppressed-window"
@@ -213,8 +214,8 @@
               <!-- line-through + opacity are visual-only; sr-only conveys status to screen readers -->
               <span class="sr-only">Unavailable — </span>
               <span class="line-through">Launch {w.launchAt}, return by {w.returnBy}</span>
-              {#if badgeFor(w)}
-                <span class="ml-2 text-xs text-neutral-500" data-testid="window-state">{badgeFor(w)}</span>
+              {#if badge}
+                <span class="ml-2 text-xs text-neutral-500" data-testid="window-state"><span aria-hidden="true">{badge[0]}</span> {badge[1]}</span>
               {/if}
             </div>
             {#if w.suppressedReason}

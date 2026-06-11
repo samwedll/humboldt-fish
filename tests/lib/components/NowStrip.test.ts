@@ -54,4 +54,24 @@ describe('NowStrip', () => {
     const { getByText } = render(NowStrip, { props: { now, nowMs: PT('14:00') } });
     expect(getByText(/1h 40m ago/)).toBeTruthy();
   });
+
+  it('NO-GO never renders checklist or footer, even if present in the object', () => {
+    const now: NowVerdict = {
+      ...goVerdict(),
+      verdict: 'NO-GO',
+      reason: 'Swell height 7.0 ft'
+    };
+    const { queryByText } = render(NowStrip, { props: { now, nowMs: PT('14:00') } });
+    expect(queryByText(/USCG bar status/)).toBeNull();
+    expect(queryByText(/Conditions can change fast/)).toBeNull();
+  });
+
+  it('launch-by chip shows within 2h of the deadline and hides beyond it', () => {
+    const soon: NowVerdict = { ...goVerdict(), launchByMs: PT('15:30') }; // 1.5h from 14:00
+    const { getByText } = render(NowStrip, { props: { now: soon, nowMs: PT('14:00') } });
+    expect(getByText(/\(by 15:30 PT\)/)).toBeTruthy();
+    const far = goVerdict(); // launchByMs 19:00 = 5h out
+    const { queryByText } = render(NowStrip, { props: { now: far, nowMs: PT('14:00') } });
+    expect(queryByText(/\(by 19:00 PT\)/)).toBeNull();
+  });
 });

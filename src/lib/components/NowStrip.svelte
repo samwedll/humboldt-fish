@@ -53,7 +53,7 @@
     <ul class="mt-1 space-y-0.5 text-xs text-neutral-600">
       {#each now.factors as f}
         <li>
-          {STATUS_ICON[f.status] ?? '?'} {f.name}: {f.value}{f.note ? ` — ${f.note}` : ''}
+          <span aria-hidden="true">{STATUS_ICON[f.status] ?? '?'}</span> {f.name}: {f.value}{f.note ? ` — ${f.note}` : ''}
         </li>
       {/each}
     </ul>
@@ -80,7 +80,7 @@
     </div>
   {/if}
 
-  {#if now.footer}
+  {#if now.verdict !== 'NO-GO' && now.footer}
     <div class="mt-2 text-xs italic text-neutral-500">{now.footer}</div>
   {/if}
 </section>
