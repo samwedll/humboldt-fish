@@ -53,7 +53,7 @@
     <ul class="mt-1 space-y-0.5 text-xs text-neutral-600">
       {#each now.factors as f}
         <li>
-          <span aria-hidden="true">{STATUS_ICON[f.status] ?? '?'}</span> {f.name}: {f.value}{f.note ? ` — ${f.note}` : ''}
+          <span aria-hidden="true">{STATUS_ICON[f.status] ?? '?'}</span><span class="sr-only">{f.status}:</span> {f.name}: {f.value}{f.note ? ` — ${f.note}` : ''}
         </li>
       {/each}
     </ul>
@@ -62,6 +62,12 @@
   {#if obsAgeLabel}
     <div class="mt-1 text-xs {now.staleness.degraded ? 'font-medium text-amber-700' : 'text-neutral-500'}">
       Buoy 46244 obs: {obsAgeLabel}
+    </div>
+  {/if}
+
+  {#if now.bailout}
+    <div class="mt-2 rounded border border-yellow-300 bg-yellow-50 p-2 text-xs text-yellow-900">
+      <strong>Bailout:</strong> {now.bailout}
     </div>
   {/if}
 

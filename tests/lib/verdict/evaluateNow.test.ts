@@ -163,6 +163,7 @@ describe('evaluateNow — condition factors', () => {
     const wind = r.factors.find((f) => f.name === 'Sustained wind')!;
     expect(wind.status).toBe('pass');
     expect(r.staleness.degraded).toBe(false);
+    expect(r.bailout).toBeUndefined();
   });
 
   it('stale buoy (>60 min): factors floor at warn, verdict degrades to CONDITIONAL', () => {
@@ -176,6 +177,7 @@ describe('evaluateNow — condition factors', () => {
     const swell = r.factors.find((f) => f.name === 'Swell height')!;
     expect(swell.status).toBe('warn');
     expect(swell.note).toMatch(/buoy data 3 h old/);
+    expect(r.bailout).toBeTruthy();
   });
 
   it('stale buoy does NOT mask a failing reading', () => {
@@ -220,6 +222,15 @@ describe('evaluateNow — condition factors', () => {
     expect(wind.status).toBe('fail');
   });
 
+  it('buoy obs at exactly 60 min old still counts as live confirmation', () => {
+    const nd = trinidadNowData({
+      buoy: { ...trinidadNowData().buoy!, observedAt: new Date(PT('13:00')).toISOString(), observedAtMs: PT('13:00') }
+    });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.staleness.degraded).toBe(false);
+    expect(r.verdict).toBe('GO');
+  });
+
   it('no period covers the span: falls back to the day wind check, flagged', () => {
     const day = dayVerdict(trinidadNowData({ pointPeriods: [] }));
     day.checks.push({
@@ -248,6 +259,7 @@ describe('evaluateNow — condition factors', () => {
     expect(r.verdict).toBe('NO-GO');
     expect(r.reason).toMatch(/^Not now/);
     expect(r.nextViableAtMs).toBeUndefined(); // 18:00 start would run into 25-30 mph wind
+    expect(r.reason).toMatch(/clear conditions/i);
   });
 });
 
@@ -287,6 +299,16 @@ describe('evaluateNow — degraded data', () => {
     const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
     expect(r.verdict).toBe('CONDITIONAL');
     expect(r.factors.some((f) => f.name === 'Buoy obs age')).toBe(true);
+  });
+
+  it('unverified wind at a protected launch caps the verdict at CONDITIONAL', () => {
+    // Freshwater Lagoon: no buoy, no currents; empty pointPeriods and no day wind check
+    // leave the wind factor 'unverified'.
+    const nd: NowData = { date: '2026-06-10', dawnMs: DAWN, duskMs: DUSK, pointPeriods: [] };
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), { launch: 'freshwater-lagoon', species: 'rainbow-trout' })!;
+    expect(r.verdict).toBe('CONDITIONAL');
+    expect(r.reason).toMatch(/unverified/i);
+    expect(r.bailout).toBeTruthy();
   });
 
   it('tide-blocked with no viable start left today reads as done for today', () => {

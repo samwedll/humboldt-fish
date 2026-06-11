@@ -66,6 +66,12 @@ describe('NowStrip', () => {
     expect(queryByText(/Conditions can change fast/)).toBeNull();
   });
 
+  it('renders the bailout plan on CONDITIONAL', () => {
+    const now: NowVerdict = { ...goVerdict(), verdict: 'CONDITIONAL', reason: 'Swell height 4.6 ft', bailout: 'Turn back if anything builds.' };
+    const { getByText } = render(NowStrip, { props: { now, nowMs: PT('14:00') } });
+    expect(getByText(/Turn back if anything builds/)).toBeTruthy();
+  });
+
   it('launch-by chip shows within 2h of the deadline and hides beyond it', () => {
     const soon: NowVerdict = { ...goVerdict(), launchByMs: PT('15:30') }; // 1.5h from 14:00
     const { getByText } = render(NowStrip, { props: { now: soon, nowMs: PT('14:00') } });

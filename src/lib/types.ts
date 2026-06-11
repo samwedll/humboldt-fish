@@ -84,6 +84,7 @@ export interface NowVerdict {
   staleness: { obsAgeMs: number | null; degraded: boolean };
   tideContext?: string;    // e.g. "flood building, peaks 1.2 kt at 16:48"
   footer?: string;         // canonical closing line, set on GO/CONDITIONAL
+  bailout?: string;        // explicit bailout plan — set on CONDITIONAL per the four-layer rules
 }
 
 export interface LaunchWindow {

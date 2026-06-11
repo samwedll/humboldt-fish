@@ -18,6 +18,8 @@ import { checklistFor } from '../config/checklist.js';
 export const NOW_BUOY_MAX_AGE_MS = 60 * 60_000;
 export const NOW_FOOTER =
   'Verify the bar status and salmon hotline within 2 hours of launch. Conditions can change fast on the North Coast.';
+export const NOW_BAILOUT =
+  'If conditions degrade en route (wind builds, period drops, fog rolls in), turn back to the launch immediately. Don\'t commit far from the launch on a CONDITIONAL call.';
 
 const TRIP_CAP_MS = thresholds.yearOneTripDurationHr * 3_600_000;
 const MIN_TRIP_MS = 2 * 3_600_000; // same floor as MIN_TRIP_HOURS in runLogistics
@@ -350,7 +352,7 @@ export function evaluateNow(
           ? `Not now — ${gate.reason}`
           : next === null
             ? `Done for today — ${gate.reason}; no viable start remains before dusk`
-            : `Not now — ${gate.reason}`,
+            : `Not now — ${gate.reason}. Later starts today don't clear conditions either.`,
       ...(nextViableAtMs !== undefined ? { nextViableAtMs } : {}),
       factors: [],
       checklist: [],
@@ -362,6 +364,9 @@ export function evaluateNow(
   const staleness = { obsAgeMs, degraded };
   const fails = factors.filter((f) => f.status === 'fail');
   const warns = factors.filter((f) => f.status === 'warn');
+
+  // A factor we couldn't verify at all must never ride under a "verified" GO.
+  const unverified = factors.some((f) => f.value === 'unverified');
 
   const checklist = checklistFor({
     species: ctx.species,
@@ -408,10 +413,13 @@ export function evaluateNow(
     ...(tideContext !== undefined ? { tideContext } : {})
   };
 
-  if (warns.length >= 2) {
+  if (warns.length >= 2 || unverified) {
     return {
       verdict: 'CONDITIONAL',
-      reason: warns.map((f) => `${f.name} ${f.value}`).join(', '),
+      reason: warns.length >= 2
+        ? warns.map((f) => `${f.name} ${f.value}`).join(', ')
+        : `${factors.filter((f) => f.value === 'unverified').map((f) => f.name).join(', ')} unverified — treat as CONDITIONAL`,
+      bailout: NOW_BAILOUT,
       ...common
     };
   }
