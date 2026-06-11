@@ -8,10 +8,11 @@
 import type { Verdict, LaunchId, Species, NowVerdict, NowData, Check, CheckStatus } from '../types.js';
 import { getLaunch, type LaunchProfile } from '../config/launches.js';
 import { thresholds } from '../config/thresholds.js';
-import { clampReturnByForEbb } from './runLogistics.js';
+import { clampReturnByForEbb, annotateWindowWithTide } from './runLogistics.js';
 import { evalAbove, evalAtLeast } from './runSafety.js';
 import { parsePointWind } from './parseMarineProse.js';
 import { formatPacificTime, toPacificLocalISO, ptLocalIsoToEpochMs } from '../format.js';
+import { checklistFor } from '../config/checklist.js';
 
 /** Buoy obs older than this can't confirm current conditions — affected factors floor at warn. */
 export const NOW_BUOY_MAX_AGE_MS = 60 * 60_000;
@@ -82,6 +83,15 @@ function nextViableStart(nowMs: number, nowData: NowData): number | null {
     if (temporalGate(t, nowData).ok) return t;
   }
   return null;
+}
+
+const LAUNCH_BY_STEP_MS = 5 * 60_000;
+
+/** Latest start (5-min resolution) at which the temporal gates still pass. Bounded by dusk − 2h. */
+function latestViableStart(nowMs: number, nowData: NowData): number {
+  let t = nowMs;
+  while (temporalGate(t + LAUNCH_BY_STEP_MS, nowData).ok) t += LAUNCH_BY_STEP_MS;
+  return t;
 }
 
 // ---- Condition factor helpers ----
@@ -347,33 +357,54 @@ export function evaluateNow(
   const fails = factors.filter((f) => f.status === 'fail');
   const warns = factors.filter((f) => f.status === 'warn');
 
+  const checklist = checklistFor({
+    species: ctx.species,
+    launch: ctx.launch,
+    launchAtMs: nowMs,
+    returnByMs: gate.returnByMs,
+    dawnMs: nowData.dawnMs,
+    duskMs: nowData.duskMs
+  });
+
+  let tideContext: string | undefined;
+  if (nowData.tidalCurrents) {
+    tideContext = annotateWindowWithTide(
+      toPacificLocalISO(new Date(nowMs)),
+      toPacificLocalISO(new Date(gate.returnByMs)),
+      nowData.tidalCurrents
+    ).description;
+  }
+
   if (fails.length > 0) {
     return {
       verdict: 'NO-GO',
       reason: fails.map((f) => `${f.name} ${f.value}`).join(', '),
       factors,
       checklist: [],
-      staleness
+      staleness,
+      ...(tideContext !== undefined ? { tideContext } : {})
     };
   }
+
+  const launchByMs = latestViableStart(nowMs, nowData);
+
+  const common = {
+    returnByMs: gate.returnByMs,
+    launchByMs,
+    factors,
+    checklist,
+    staleness,
+    footer: NOW_FOOTER,
+    ...(tideContext !== undefined ? { tideContext } : {})
+  };
 
   if (warns.length >= 2) {
     return {
       verdict: 'CONDITIONAL',
       reason: warns.map((f) => `${f.name} ${f.value}`).join(', '),
-      returnByMs: gate.returnByMs,
-      factors,
-      checklist: [],
-      staleness
+      ...common
     };
   }
 
-  return {
-    verdict: 'GO',
-    reason: 'Conditions verified for an immediate launch',
-    returnByMs: gate.returnByMs,
-    factors,
-    checklist: [],
-    staleness
-  };
+  return { verdict: 'GO', reason: 'Conditions verified for an immediate launch', ...common };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateNow } from '../../../src/lib/verdict/evaluateNow.js';
+import { evaluateNow, NOW_FOOTER } from '../../../src/lib/verdict/evaluateNow.js';
 import type { Verdict, NowData, TidalCurrentEvent } from '../../../src/lib/types.js';
 
 // June 2026 is PDT (UTC-7): "HH:MM PT" === "HH:MM-07:00".
@@ -300,5 +300,39 @@ describe('evaluateNow — degraded data', () => {
     expect(r.verdict).toBe('NO-GO');
     expect(r.reason).toMatch(/^Done for today/);
     expect(r.nextViableAtMs).toBeUndefined();
+  });
+});
+
+describe('evaluateNow — assembly extras', () => {
+  it('GO carries launchByMs (last start with ≥2h before dusk), checklist, footer', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(trinidadNowData()), TRINIDAD)!;
+    expect(r.verdict).toBe('GO');
+    expect(r.launchByMs).toBe(PT('19:00')); // dusk 21:00 − 2h, reached in 5-min steps
+    expect(r.footer).toBe(NOW_FOOTER);
+    expect(r.checklist.some((i) => i.id === 'bar-status')).toBe(true);
+  });
+
+  it('salmon trip: checklist includes the hotline', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(trinidadNowData()), { launch: 'trinidad', species: 'salmon' })!;
+    expect(r.checklist.some((i) => i.id === 'salmon-hotline')).toBe(true);
+  });
+
+  it('currents launch: GO carries a tideContext description', () => {
+    // Launch 12:30 inside the flood block (slack 12:00 → flood peaks 16:00 at 1.2 kt).
+    const nd = bayNowData([
+      ev('2026-06-10T12:00', 'slack', 0),
+      ev('2026-06-10T16:00', 'flood', 1.2),
+      ev('2026-06-10T19:30', 'slack', 0)
+    ]);
+    const r = evaluateNow(PT('12:30'), dayVerdict(nd), BAY)!;
+    expect(r.verdict).toBe('GO');
+    expect(r.tideContext).toMatch(/flood|slack/i);
+  });
+
+  it('NO-GO on conditions has no footer and no checklist', () => {
+    const nd = trinidadNowData({ buoy: { ...trinidadNowData().buoy!, waveHtFt: 7.0 } });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.footer).toBeUndefined();
+    expect(r.checklist).toEqual([]);
   });
 });
