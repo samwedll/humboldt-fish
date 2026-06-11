@@ -76,7 +76,8 @@ export interface NowVerdict {
   verdict: 'GO' | 'CONDITIONAL' | 'NO-GO';
   reason: string;
   nextViableAtMs?: number; // set only when the blocker is temporal AND conditions don't fail at that time
-  launchByMs?: number;     // latest start at which the temporal gates still pass
+  launchByMs?: number;     // end of the CURRENT temporal-viability stretch (daylight/tide).
+                           // Temporal gates only — conditions are a snapshot; re-verify at launch.
   returnByMs?: number;     // min(now + 4h cap, civil dusk), possibly ebb-clamped
   factors: Check[];        // recomputed condition checks (layer: 'safety')
   checklist: ChecklistItem[];

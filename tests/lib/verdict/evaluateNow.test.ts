@@ -99,6 +99,7 @@ describe('evaluateNow — temporal gates', () => {
     expect(r.verdict).toBe('NO-GO');
     expect(r.reason).toMatch(/^Done for today/);
     expect(r.nextViableAtMs).toBeUndefined();
+    expect(r.staleness.degraded).toBe(true);
   });
 
   it('mid-ebb at a currents launch: NO-GO now, viable from the next slack', () => {
@@ -128,6 +129,7 @@ describe('evaluateNow — temporal gates', () => {
     const r = evaluateNow(PT('11:00'), dayVerdict(nd), BAY)!;
     expect(r.verdict).toBe('GO');
     expect(r.returnByMs).toBe(PT('13:23'));
+    expect(r.tideContext).toMatch(/return clamped/);
   });
 
   it('plain viable afternoon at Trinidad: GO with returnBy = now + 4h', () => {
@@ -334,5 +336,25 @@ describe('evaluateNow — assembly extras', () => {
     const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
     expect(r.footer).toBeUndefined();
     expect(r.checklist).toEqual([]);
+  });
+
+  it('launchByMs stops at the end of the current viable stretch, never across a hostile gap', () => {
+    // Viable on the early flood; ebb builds hostile midday; viable again after
+    // the 16:00 slack. launchBy must NOT point past the hostile gap.
+    const nd = bayNowData([
+      ev('2026-06-10T07:30', 'slack', 0),
+      ev('2026-06-10T10:00', 'flood', 1.0),
+      ev('2026-06-10T12:30', 'slack', 0),
+      ev('2026-06-10T14:30', 'ebb', -2.5),
+      ev('2026-06-10T16:00', 'slack', 0),
+      ev('2026-06-10T18:00', 'flood', 1.0)
+    ]);
+    const r = evaluateNow(PT('08:00'), dayVerdict(nd), BAY)!;
+    expect(r.verdict).toBe('GO');
+    expect(r.launchByMs).toBeDefined();
+    // The hostile-ebb stretch begins when interpolated ebb speed crosses 1.5 kt
+    // (after the 12:30 slack); launchBy must be at or before that, certainly
+    // before the 16:00 slack that opens the second stretch.
+    expect(r.launchByMs!).toBeLessThan(PT('14:30'));
   });
 });

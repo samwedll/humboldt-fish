@@ -28,6 +28,7 @@ interface GateResult {
   returnByMs: number;
   reason?: string;
   doneForToday?: boolean;
+  clampedForEbb?: boolean;
 }
 
 function temporalGate(tMs: number, nowData: NowData): GateResult {
@@ -56,7 +57,10 @@ function temporalGate(tMs: number, nowData: NowData): GateResult {
     // both come back as `suppressed` with a human-readable reason.
     const clamp = clampReturnByForEbb(launchIso, returnIso, tidalCurrents);
     if (clamp.suppressed) return { ok: false, returnByMs, reason: clamp.reason };
-    if (clamp.newEnd !== returnIso) returnByMs = ptLocalIsoToEpochMs(clamp.newEnd);
+    if (clamp.newEnd !== returnIso) {
+      returnByMs = ptLocalIsoToEpochMs(clamp.newEnd);
+      return { ok: true, returnByMs, clampedForEbb: true };
+    }
   }
   return { ok: true, returnByMs };
 }
@@ -280,10 +284,12 @@ export function evaluateNow(
   if (toPacificLocalISO(new Date(nowMs)).slice(0, 10) !== nowData.date) return null;
 
   const profile = getLaunch(ctx.launch);
-  const baseStaleness = {
-    obsAgeMs: nowData.buoy ? nowMs - nowData.buoy.observedAtMs : null,
-    degraded: false
-  };
+  const baseStaleness = nowData.buoy
+    ? {
+        obsAgeMs: nowMs - nowData.buoy.observedAtMs,
+        degraded: nowMs - nowData.buoy.observedAtMs > NOW_BUOY_MAX_AGE_MS
+      }
+    : { obsAgeMs: null, degraded: false };
 
   // Layer 1 carries over unchanged — legality is date-based, not time-of-day-based.
   if (day.layers.legal.status === 'fail') {
@@ -373,6 +379,10 @@ export function evaluateNow(
       toPacificLocalISO(new Date(gate.returnByMs)),
       nowData.tidalCurrents
     ).description;
+  }
+  if (gate.clampedForEbb) {
+    const clampNote = 'return clamped — ebb builds past 1.5 kt later';
+    tideContext = tideContext ? `${tideContext} · ${clampNote}` : clampNote;
   }
 
   if (fails.length > 0) {
