@@ -30,12 +30,33 @@ describe('checklistFor', () => {
     expect(items.some((i) => i.id === 'spit-status')).toBe(true);
   });
 
-  it('adds low-light gear when launching within 30 min after civil dawn', () => {
+  it('adds low-light gear when launching in the twilight band after earliest launch', () => {
     const items = checklistFor({
       species: 'rockfish', launch: 'trinidad',
-      launchAtMs: DAWN + 20 * 60_000, returnByMs: DAWN + 4 * HOUR, dawnMs: DAWN, duskMs: DUSK
+      launchAtMs: DAWN + 45 * 60_000, returnByMs: DAWN + 4 * HOUR, dawnMs: DAWN, duskMs: DUSK
     });
     expect(items.some((i) => i.id === 'low-light')).toBe(true);
+  });
+
+  it('low-light boundaries are inclusive on both sides', () => {
+    const base = { species: 'rockfish' as const, launch: 'trinidad' as const, dawnMs: DAWN, duskMs: DUSK };
+    // exactly dawn + 60 min (earliest launch + margin) → included
+    expect(checklistFor({ ...base, launchAtMs: DAWN + 60 * 60_000, returnByMs: DAWN + 4 * HOUR })
+      .some((i) => i.id === 'low-light')).toBe(true);
+    // one minute past → excluded
+    expect(checklistFor({ ...base, launchAtMs: DAWN + 61 * 60_000, returnByMs: DAWN + 4 * HOUR })
+      .some((i) => i.id === 'low-light')).toBe(false);
+    // return exactly at dusk − 30 min → included
+    expect(checklistFor({ ...base, launchAtMs: DUSK - 4 * HOUR, returnByMs: DUSK - 30 * 60_000 })
+      .some((i) => i.id === 'low-light')).toBe(true);
+  });
+
+  it('trinidad has no spit-status item', () => {
+    const items = checklistFor({
+      species: 'rockfish', launch: 'trinidad',
+      launchAtMs: NOON, returnByMs: NOON + 4 * HOUR, dawnMs: DAWN, duskMs: DUSK
+    });
+    expect(items.some((i) => i.id === 'spit-status')).toBe(false);
   });
 
   it('adds low-light gear when returning within 30 min of civil dusk', () => {

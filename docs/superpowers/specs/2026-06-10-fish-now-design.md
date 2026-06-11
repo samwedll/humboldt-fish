@@ -86,7 +86,7 @@ Items and trigger conditions live in `src/lib/config/checklist.ts`, each citing 
 
 - Bar status recorder — always (canonical footer, `SKILL.md`)
 - Salmon hotline — when salmon is among selected species (canonical footer, `regs/`)
-- Nav lights + filed float plan + VHF check — when `launchAt` is within 30 min after civil dawn, or `returnBy` lands within 30 min of civil dusk (`thresholds.md` pre-dawn/low-light preconditions; 30 min mirrors the dawn+30 offset `runLogistics` already uses)
+- Nav lights + filed float plan + VHF check — when `launchAt` falls within 30 min after the earliest permitted launch (civil dawn + 30, the `runLogistics` morning-window convention — i.e. up to dawn + 60), or `returnBy` lands within 30 min of civil dusk; boundaries inclusive (`thresholds.md` pre-dawn/low-light preconditions). The original 'within 30 min after civil dawn' wording was unreachable: the temporal gate never permits launches before dawn + 30.
 
 Display-only; no persisted check state.
 

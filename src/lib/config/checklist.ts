@@ -6,10 +6,15 @@
 import type { Species, LaunchId, ChecklistItem } from '../types.js';
 import { getLaunch } from './launches.js';
 import { regs } from './regs.js';
+import { barStatus } from './sources.js';
 
-// Mirrors the dawn+30 morning-launch offset in runLogistics; spec pins the
-// low-light trigger to ±30 min of civil dawn/dusk.
+// Earliest permitted launch is civil dawn + 30 (runLogistics morning-window
+// convention). Low-light gear applies to launches in the twilight band just
+// after that — within 30 min of the earliest launch (≈ up to sunrise at this
+// latitude) — and to returns landing within 30 min of civil dusk. Boundaries
+// inclusive: the canonical twilight-launch instant itself needs the gear.
 const LOW_LIGHT_MARGIN_MS = 30 * 60_000;
+const EARLIEST_LAUNCH_OFFSET_MS = 30 * 60_000;
 
 export function checklistFor(ctx: {
   species: Species;
@@ -21,7 +26,7 @@ export function checklistFor(ctx: {
 }): ChecklistItem[] {
   const items: ChecklistItem[] = [
     // reference/SKILL.md canonical footer: verify bar status within 2 h of launch
-    { id: 'bar-status', label: 'USCG bar status (or VHF 22A)', phone: '707-839-6113' }
+    { id: 'bar-status', label: 'USCG bar status (or VHF 22A)', phone: barStatus.phone }
   ];
   if (ctx.species === 'salmon') {
     // reference/regs/: hotline call is mandatory before a salmon trip
@@ -33,8 +38,8 @@ export function checklistFor(ctx: {
     items.push({ id: 'spit-status', label: `Verify ${profile.label} spit is closed (visual or park advisories)` });
   }
   if (
-    ctx.launchAtMs < ctx.dawnMs + LOW_LIGHT_MARGIN_MS ||
-    ctx.returnByMs > ctx.duskMs - LOW_LIGHT_MARGIN_MS
+    ctx.launchAtMs <= ctx.dawnMs + EARLIEST_LAUNCH_OFFSET_MS + LOW_LIGHT_MARGIN_MS ||
+    ctx.returnByMs >= ctx.duskMs - LOW_LIGHT_MARGIN_MS
   ) {
     // reference/thresholds.md: pre-dawn/low-light preconditions
     items.push({ id: 'low-light', label: 'Low-light margins: nav light on, float plan filed, VHF checked' });
