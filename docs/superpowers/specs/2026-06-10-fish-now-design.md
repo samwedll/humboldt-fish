@@ -50,7 +50,7 @@ The user's actual question on the day of a trip is "can I go **right now**, or i
 
 - **Pre-dawn**: before civil dawn → not viable yet; next viable = dawn. (Pre-dawn launches stay suppressed exactly as the window machinery treats them; the nav-lights/float-plan/VHF preconditions in `thresholds.md` are gear the pipeline can't verify.)
 - **Minimum trip**: `returnBy − now ≥ 2h`, where `returnBy = min(now + 4h, civil dusk)`. Same 2-hour minimum and 4-hour year-1 cap the window suppression already uses. Under 2h left → "done for today."
-- **Tide phase** (launches with a `currentStation` only): reuses the same canonical tide guidance as `runLogistics` (launch on slack or flood; the ebb-clamp thresholds). Mid-ebb → not viable; next viable = next slack/flood start. Trinidad and the lagoons skip this gate, same as the window machinery.
+- **Tide phase** (launches with a `currentStation` only): reuses the same canonical tide guidance as `runLogistics` (launch on slack or flood; the ebb-clamp thresholds). Mid-ebb → not viable; next viable = next slack/flood start. Trinidad and the lagoons skip this gate, same as the window machinery. If a currents launch has no live currents data (fetch failed or empty), the now-verdict fails closed: NO-GO 'cannot verify tide phase' — unlike the day pipeline, which plans around tide tables.
 
 ### Condition gates (same verdict algebra as `computeVerdict`)
 

@@ -139,8 +139,144 @@ describe('evaluateNow — temporal gates', () => {
   it('late start: returnBy capped at civil dusk, not now + 4h', () => {
     // 17:30 + 4h would be 21:30; dusk is 21:00 → min() picks dusk.
     // Still viable: 3.5h of daylight ≥ the 2h minimum.
-    const r = evaluateNow(PT('17:30'), dayVerdict(trinidadNowData()), TRINIDAD)!;
+    // Fresh buoy at 17:20 (10 min old) — this test checks the temporal gate,
+    // not staleness; the default fixture (buoy at 13:50) would be 3h 40min stale
+    // at 17:30 and degrade to CONDITIONAL, obscuring what we're actually testing.
+    const nd = trinidadNowData({
+      buoy: { ...trinidadNowData().buoy!, observedAt: new Date(PT('17:20')).toISOString(), observedAtMs: PT('17:20') }
+    });
+    const r = evaluateNow(PT('17:30'), dayVerdict(nd), TRINIDAD)!;
     expect(r.verdict).toBe('GO');
     expect(r.returnByMs).toBe(DUSK);
+  });
+});
+
+describe('evaluateNow — condition factors', () => {
+  it('fresh buoy, calm wind: GO with passing factors', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(trinidadNowData()), TRINIDAD)!;
+    expect(r.verdict).toBe('GO');
+    const swell = r.factors.find((f) => f.name === 'Swell height')!;
+    expect(swell.status).toBe('pass');
+    expect(swell.value).toBe('3.2 ft');
+    const wind = r.factors.find((f) => f.name === 'Sustained wind')!;
+    expect(wind.status).toBe('pass');
+    expect(r.staleness.degraded).toBe(false);
+  });
+
+  it('stale buoy (>60 min): factors floor at warn, verdict degrades to CONDITIONAL', () => {
+    const nd = trinidadNowData({
+      buoy: { ...trinidadNowData().buoy!, observedAt: new Date(PT('11:00')).toISOString(), observedAtMs: PT('11:00') }
+    });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.verdict).toBe('CONDITIONAL'); // swell + period both floored → ≥2 warns
+    expect(r.staleness.degraded).toBe(true);
+    expect(r.staleness.obsAgeMs).toBe(3 * 3_600_000);
+    const swell = r.factors.find((f) => f.name === 'Swell height')!;
+    expect(swell.status).toBe('warn');
+    expect(swell.note).toMatch(/buoy data 3 h old/);
+  });
+
+  it('stale buoy does NOT mask a failing reading', () => {
+    const nd = trinidadNowData({
+      buoy: {
+        ...trinidadNowData().buoy!,
+        observedAt: new Date(PT('11:00')).toISOString(), observedAtMs: PT('11:00'),
+        waveHtFt: 7.0
+      }
+    });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.factors.find((f) => f.name === 'Swell height')!.status).toBe('fail');
+  });
+
+  it('missing buoy at an open-ocean launch: NO-GO, cannot verify', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(trinidadNowData({ buoy: undefined })), TRINIDAD)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.reason).toMatch(/Live buoy/);
+    expect(r.nextViableAtMs).toBeUndefined();
+  });
+
+  it('swell over threshold: plain NO-GO with no nextViableAtMs', () => {
+    const nd = trinidadNowData({ buoy: { ...trinidadNowData().buoy!, waveHtFt: 7.0 } });
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.reason).toMatch(/Swell height/);
+    expect(r.nextViableAtMs).toBeUndefined();
+  });
+
+  it('wind from the worst point period overlapping the trip span', () => {
+    const nd = trinidadNowData({
+      pointPeriods: [
+        { startMs: PT('06:00'), endMs: PT('15:00'), windSpeed: '5 to 10 mph', windDirection: 'NW' },
+        { startMs: PT('15:00'), endMs: PT('18:00'), windSpeed: '20 to 25 mph', windDirection: 'NW' }
+      ]
+    });
+    // Trip span 14:00–18:00 overlaps both periods; 25 mph ≈ 21.7 kt > 15 kt → fail.
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), TRINIDAD)!;
+    expect(r.verdict).toBe('NO-GO');
+    const wind = r.factors.find((f) => f.name === 'Sustained wind')!;
+    expect(wind.status).toBe('fail');
+  });
+
+  it('no period covers the span: falls back to the day wind check, flagged', () => {
+    const day = dayVerdict(trinidadNowData({ pointPeriods: [] }));
+    day.checks.push({
+      layer: 'safety', name: 'Sustained wind', value: '8 kt NW',
+      threshold: '≤ 15 kt', status: 'pass', note: 'NWS point forecast (Trinidad Harbor), high end of range used'
+    });
+    const r = evaluateNow(PT('14:00'), day, TRINIDAD)!;
+    const wind = r.factors.find((f) => f.name === 'Sustained wind')!;
+    expect(wind.status).toBe('pass');
+    expect(wind.note).toMatch(/whole-day forecast/);
+  });
+
+  it('temporal blocker pointing into failing conditions: nextViableAtMs is withheld', () => {
+    // Same mid-ebb scenario as Task 6. Bay launches carry no swell factor, so
+    // the failing condition at the 18:00 slack is wind: calm until 18:00, gale after.
+    const nd = bayNowData([
+      ev('2026-06-10T12:00', 'slack', 0),
+      ev('2026-06-10T15:00', 'ebb', -2.5),
+      ev('2026-06-10T18:00', 'slack', 0)
+    ]);
+    nd.pointPeriods = [
+      { startMs: PT('06:00'), endMs: PT('18:00'), windSpeed: '5 to 10 mph', windDirection: 'NW' },
+      { startMs: PT('18:00'), endMs: PT('06:00', '2026-06-11'), windSpeed: '25 to 30 mph', windDirection: 'NW' }
+    ];
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), BAY)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.reason).toMatch(/^Not now/);
+    expect(r.nextViableAtMs).toBeUndefined(); // 18:00 start would run into 25-30 mph wind
+  });
+});
+
+describe('evaluateNow — degraded data', () => {
+  it('currents launch with no currents data: fail closed, NO-GO', () => {
+    const nd = bayNowData([]);
+    delete nd.tidalCurrents;
+    const r = evaluateNow(PT('14:00'), dayVerdict(nd), BAY)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.reason).toMatch(/tide phase/i);
+    expect(r.nextViableAtMs).toBeUndefined();
+  });
+
+  it('currents launch with empty events list: fail closed, NO-GO', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(bayNowData([])), BAY)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.reason).toMatch(/tide phase/i);
+  });
+
+  it('tide-blocked with no viable start left today reads as done for today', () => {
+    // Hostile rising ebb at 14:30; only remaining slack lands past dusk−2h, so the scan is empty.
+    // At 14:30, frac = (14:30−13:00)/(16:30−13:00) = 90/210 = 0.4286, vel = 2.5·sin(π/2·0.4286) ≈ 1.56 > 1.5 → hostile.
+    // Candidates: slack 19:45 > duskMs−2h (19:00) → filtered; dawn+30 is past. Scan empty.
+    const nd = bayNowData([
+      ev('2026-06-10T13:00', 'slack', 0),
+      ev('2026-06-10T16:30', 'ebb', -2.5),
+      ev('2026-06-10T19:45', 'slack', 0)
+    ]);
+    const r = evaluateNow(PT('14:30'), dayVerdict(nd), BAY)!;
+    expect(r.verdict).toBe('NO-GO');
+    expect(r.reason).toMatch(/^Done for today/);
+    expect(r.nextViableAtMs).toBeUndefined();
   });
 });

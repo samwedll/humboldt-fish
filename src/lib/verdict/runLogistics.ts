@@ -378,6 +378,13 @@ export function clampReturnByForEbb(
 
     // e.time >= windowStart. Linear-interpolate the rising-ebb side.
     const prevSlack = events.slice(0, i).reverse().find((p) => p.type === 'slack');
+    // Safety case for !prevSlack: the currents fetch starts at today 00:00, so a
+    // slack that precedes this ebb peak would have to be before midnight — meaning
+    // the ebb max lands before ~03:06 and any hostile remnant decays before ~04:54.
+    // The earliest permitted launch is civil dawn+30 (≥ ~05:25 at solstice), so
+    // the leading-edge gap can never overlap a permitted launch window. Skipping
+    // is therefore conservative: the dangerous ebb is fully decayed by the time
+    // any launch is allowed.
     if (!prevSlack) continue;
 
     const slackMin = ptIsoToMinutes(prevSlack.time);

@@ -24,13 +24,13 @@ export interface SafetyOutput {
   checks: Check[];
 }
 
-function evalAbove(value: number, failAt: number): CheckStatus {
+export function evalAbove(value: number, failAt: number): CheckStatus {
   if (value > failAt) return 'fail';
   if (value >= failAt * (1 - WARN_BAND)) return 'warn';
   return 'pass';
 }
 
-function evalAtLeast(value: number, failBelow: number): CheckStatus {
+export function evalAtLeast(value: number, failBelow: number): CheckStatus {
   if (value < failBelow) return 'fail';
   if (value < failBelow * (1 + WARN_BAND)) return 'warn';
   return 'pass';
