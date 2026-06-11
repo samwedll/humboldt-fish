@@ -84,4 +84,9 @@ export const sources = {
   } as CurrentsSourceDef
 };
 
+// reference/data-sources.md: USCG Station Humboldt Bay bar recorder
+// Exported separately (not in `sources`) because it is a contact, not a
+// polled data source, and sources.test.ts asserts every sources entry has ttlSec.
+export const barStatus = { label: 'USCG Station Humboldt Bay', phone: '707-839-6113', vhf: '22A' } as const;
+
 export const USER_AGENT = 'humboldt.fish (https://humboldt.fish)';

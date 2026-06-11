@@ -10,7 +10,7 @@ import type {
   TidalCurrentEvent
 } from '../types.js';
 import { getLaunch } from '../config/launches.js';
-import { formatPacificTime, toPacificLocalISO } from '../format.js';
+import { formatPacificTime, toPacificLocalISO, ptLocalIsoToEpochMs } from '../format.js';
 
 export interface LogisticsInput {
   species: Species;
@@ -378,6 +378,22 @@ export function clampReturnByForEbb(
 
     // e.time >= windowStart. Linear-interpolate the rising-ebb side.
     const prevSlack = events.slice(0, i).reverse().find((p) => p.type === 'slack');
+    // Safety case for !prevSlack: the currents fetch starts at today 00:00, so a
+    // slack that precedes this ebb peak would have to be before midnight — meaning
+    // the ebb max lands before ~03:06 and any hostile remnant decays before ~04:54.
+    // The earliest permitted launch is civil dawn+30 (≥ ~05:25 at solstice), so
+    // the leading-edge gap can never overlap a permitted launch window. Skipping
+    // is therefore conservative: the dangerous ebb is fully decayed by the time
+    // any launch is allowed.
+    // Assumptions: ≈3.1 h slack-to-peak half-cycle, ~2.5 kt typical peak. A
+    // stretched cycle at ~3 kt spring ebb could push the decay threshold closer
+    // to ~05:45 — still ahead of dawn+30 except near-solstice edge cases where
+    // dawn+30 is as early as ~05:25. The argument holds for the overwhelming
+    // majority of tidal cycles at HUB0203; watch real-trip data for near-solstice
+    // counter-examples. The descending-side branch above (the other
+    // !prevSlack || !nextSlack continue) shares the same reachability argument:
+    // an ebb peak before windowStart with no bracketing slacks in the fetch range
+    // can only occur before ~03:06, already fully decayed by any permitted launch.
     if (!prevSlack) continue;
 
     const slackMin = ptIsoToMinutes(prevSlack.time);
@@ -806,11 +822,29 @@ export function runLogistics({
     ? `Launch ${legacyAnchor.launchAt}, return by ${legacyAnchor.returnBy} (4-hour trip cap)`
     : undefined;
 
+  // Epoch-ms twins for client-side time-awareness, reconstructed from the
+  // same-date "HH:MM PT" labels. Same-date holds today on every construction
+  // path (slack paths go through minutesToPtIso, which throws on day-crossing;
+  // twilight paths stay within ~05:00–22:30 at this latitude), but
+  // shiftPacificTime wraps mod-1440 silently — so assert ordering and fail
+  // loud rather than ever emitting a timestamp that marks a past window live.
+  const withMs = (w: LaunchWindow): LaunchWindow => {
+    const launchAtMs = ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.launchAt)}`);
+    const returnByMs = ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.returnBy)}`);
+    const checkInByMs = ptLocalIsoToEpochMs(`${date}T${hhmmFromPtLabel(w.checkInBy)}`);
+    if (!(launchAtMs < returnByMs && returnByMs <= checkInByMs)) {
+      throw new Error(
+        `withMs: window "${w.label}" times are out of order after ms reconstruction (${w.launchAt} / ${w.returnBy} / ${w.checkInBy} on ${date}) — likely a midnight wrap`
+      );
+    }
+    return { ...w, launchAtMs, returnByMs, checkInByMs };
+  };
+
   return {
     result: { status: 'pass', summary: `${launchProfile.label}, ${species}` },
     checks,
     recommendations: {
-      windows: windows.length > 0 ? windows : undefined,
+      windows: windows.length > 0 ? windows.map(withMs) : undefined,
       window: legacyWindow,
       gear: [...BASE_GEAR, ...SPECIES_GEAR[species]]
     }

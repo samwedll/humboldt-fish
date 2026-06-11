@@ -47,3 +47,26 @@ export function toPacificLocalISO(d: Date): string {
   const hour = get('hour') === '24' ? '00' : get('hour');
   return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`;
 }
+
+/**
+ * Inverse of toPacificLocalISO: convert a Pacific-local "YYYY-MM-DDTHH:MM"
+ * string (the TidalCurrentEvent.time format) to epoch ms. The PT offset
+ * depends on the instant (PST vs PDT), so start from a UTC guess and correct
+ * by re-rendering; two passes settle every valid case; the spring-forward
+ * skipped hour (02:00–03:00) never occurs in NOAA station-local data, and the
+ * fall-back ambiguous hour (01:00–02:00) resolves to its first (PDT) occurrence.
+ */
+export function ptLocalIsoToEpochMs(iso: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(iso)) {
+    throw new Error(`ptLocalIsoToEpochMs: bad PT-local ISO "${iso}"`);
+  }
+  const target = Date.parse(`${iso}:00Z`);
+  let guess = target;
+  for (let i = 0; i < 2; i++) {
+    const rendered = toPacificLocalISO(new Date(guess));
+    const diff = target - Date.parse(`${rendered}:00Z`);
+    if (diff === 0) break;
+    guess += diff;
+  }
+  return guess;
+}

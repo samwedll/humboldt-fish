@@ -22,6 +22,7 @@ export type VerdictLabel = 'GO' | 'CONDITIONAL' | 'NO-GO' | 'INCOMPLETE';
 export type LayerStatus = 'pass' | 'warn' | 'fail' | 'incomplete';
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'unknown';
 export type LayerName = 'legal' | 'safety' | 'quality' | 'logistics';
+export type WindowState = 'past' | 'active' | 'upcoming';
 
 export interface LayerResult {
   status: LayerStatus;
@@ -50,6 +51,42 @@ export interface TidePhaseAnnotation {
   description: string;
 }
 
+/**
+ * Everything the client-side now-evaluator needs, attached to TODAY's verdict
+ * only. Times are epoch ms except tidalCurrents, which is passed through
+ * verbatim so evaluateNow can reuse the PT-local-ISO tide machinery
+ * (clampReturnByForEbb / annotateWindowWithTide) unchanged.
+ */
+export interface NowData {
+  date: string;    // PT date this payload was computed for (rollover guard)
+  dawnMs: number;  // civil dawn
+  duskMs: number;  // civil dusk
+  buoy?: NdbcObservation & { observedAtMs: number };  // open-ocean launches only
+  tidalCurrents?: TidalCurrents;                       // launches with a currentStation only
+  pointPeriods?: { startMs: number; endMs: number; windSpeed: string; windDirection: string }[];
+}
+
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  phone?: string; // rendered as a tel: link when present
+}
+
+export interface NowVerdict {
+  verdict: 'GO' | 'CONDITIONAL' | 'NO-GO';
+  reason: string;
+  nextViableAtMs?: number; // set only when the blocker is temporal AND conditions don't fail at that time
+  launchByMs?: number;     // end of the CURRENT temporal-viability stretch (daylight/tide).
+                           // Temporal gates only — conditions are a snapshot; re-verify at launch.
+  returnByMs?: number;     // min(now + 4h cap, civil dusk), possibly ebb-clamped
+  factors: Check[];        // recomputed condition checks (layer: 'safety')
+  checklist: ChecklistItem[];
+  staleness: { obsAgeMs: number | null; degraded: boolean };
+  tideContext?: string;    // e.g. "flood building, peaks 1.2 kt at 16:48"
+  footer?: string;         // canonical closing line, set on GO/CONDITIONAL
+  bailout?: string;        // explicit bailout plan — set on CONDITIONAL per the four-layer rules
+}
+
 export interface LaunchWindow {
   label: string;        // "Morning", "Evening", "Around 13:11 slack", etc.
   launchAt: string;     // formatted local time, e.g. "05:51 PT"
@@ -60,6 +97,13 @@ export interface LaunchWindow {
   warning?: string;            // populated when window is demoted (e.g. peak ebb in pre-clamp window > 1.5 kt)
   suppressed?: boolean;        // true when the window can't be safely launched but is kept visible (greyed) so the reason isn't hidden
   suppressedReason?: string;   // why it was suppressed (pre-dawn launch, ebb clamps trip under 2h, hostile ebb at launch)
+  // Epoch-ms twins of the display strings above — added so the client can
+  // derive past/active/upcoming state without re-parsing "HH:MM PT".
+  // Truncated to the minute to match the labels exactly (SunCalc emits
+  // seconds; the labels drop them) — don't "fix" by using raw Date.getTime().
+  launchAtMs?: number;
+  returnByMs?: number;
+  checkInByMs?: number;
 }
 
 export interface Recommendations {
@@ -86,6 +130,7 @@ export interface Verdict {
   checks: Check[];
   recommendations: Recommendations;
   dataSources: DataSources;
+  nowData?: NowData; // present only on today's verdict — input for evaluateNow
 }
 
 export interface SourceFreshness {

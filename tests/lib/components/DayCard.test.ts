@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/svelte';
 import DayCard from '../../../src/lib/components/DayCard.svelte';
-import type { Verdict, LaunchWindow } from '../../../src/lib/types.js';
+import type { Verdict, LaunchWindow, NowVerdict } from '../../../src/lib/types.js';
 
 function verdictWith(windows: LaunchWindow[]): Verdict {
   return {
@@ -91,5 +91,66 @@ describe('DayCard — suppressed launch windows', () => {
     });
     const copyButtons = queryAllByRole('button', { name: /copy shore comm message/i });
     expect(copyButtons.length).toBe(1);
+  });
+});
+
+describe('DayCard — time awareness', () => {
+  const PT = (hhmm: string) => Date.parse(`2026-06-07T${hhmm}:00-07:00`);
+  const msWindows: LaunchWindow[] = [
+    {
+      label: 'Morning', launchAt: '06:10 PT', returnBy: '10:10 PT', checkInBy: '11:10 PT',
+      launchAtMs: PT('06:10'), returnByMs: PT('10:10'), checkInByMs: PT('11:10')
+    },
+    {
+      label: 'Evening', launchAt: '17:00 PT', returnBy: '21:00 PT', checkInBy: '22:00 PT',
+      launchAtMs: PT('17:00'), returnByMs: PT('21:00'), checkInByMs: PT('22:00')
+    }
+  ];
+
+  it('today mode with nowMs: windows carry past/upcoming badges', () => {
+    const { getAllByTestId } = render(DayCard, {
+      props: {
+        verdict: verdictWith(msWindows), species: 'surfperch',
+        launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00')
+      }
+    });
+    const badges = getAllByTestId('window-state').map((el) => el.textContent?.trim());
+    expect(badges).toEqual(['▪ past', '○ upcoming']);
+  });
+
+  it('row mode never renders badges even with nowMs', () => {
+    const { queryAllByTestId } = render(DayCard, {
+      props: {
+        verdict: verdictWith(msWindows), species: 'surfperch',
+        launchLabel: 'Humboldt Bay (interior)', mode: 'row', nowMs: PT('14:00')
+      }
+    });
+    expect(queryAllByTestId('window-state')).toHaveLength(0);
+  });
+
+  it('renders the NowStrip when a now verdict is passed', () => {
+    const { getByTestId } = render(DayCard, {
+      props: {
+        verdict: verdictWith(msWindows), species: 'surfperch',
+        launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00'),
+        now: {
+          verdict: 'GO', reason: 'ok', returnByMs: PT('18:00'),
+          factors: [], checklist: [], staleness: { obsAgeMs: null, degraded: false }
+        } satisfies NowVerdict
+      }
+    });
+    expect(getByTestId('now-strip')).toBeTruthy();
+  });
+
+  it('badges re-derive when the nowMs prop advances (minute-tick contract)', async () => {
+    const { getAllByTestId, rerender } = render(DayCard, {
+      props: {
+        verdict: verdictWith(msWindows), species: 'surfperch',
+        launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00')
+      }
+    });
+    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['▪ past', '○ upcoming']);
+    await rerender({ nowMs: PT('18:30') });
+    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['▪ past', '● active now']);
   });
 });
