@@ -4,6 +4,9 @@
 	"version": "0.0.1",
 	"type": "module",
 	"packageManager": "pnpm@10.33.0",
+	"engines": {
+		"node": ">=24 <25"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"dev:clean": "lsof -ti tcp:5173 | xargs -r kill 2>/dev/null; sleep 0.3; vite dev",
@@ -22,7 +25,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/svelte": "^5.3.1",
-		"@types/node": "^22.0.0",
+		"@types/node": "^24.0.0",
 		"@types/suncalc": "^1.9.2",
 		"autoprefixer": "^10.5.0",
 		"jsdom": "^29.1.1",
