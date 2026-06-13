@@ -3,6 +3,7 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"packageManager": "pnpm@10.33.0",
 	"scripts": {
 		"dev": "vite dev",
 		"dev:clean": "lsof -ti tcp:5173 | xargs -r kill 2>/dev/null; sleep 0.3; vite dev",
@@ -21,7 +22,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/svelte": "^5.3.1",
-		"@types/node": "^25.9.3",
+		"@types/node": "^22.0.0",
 		"@types/suncalc": "^1.9.2",
 		"autoprefixer": "^10.5.0",
 		"jsdom": "^29.1.1",
@@ -38,5 +39,11 @@
 	"dependencies": {
 		"suncalc": "^1.9.0",
 		"zod": "^4.4.3"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"workerd"
+		]
 	}
 }
