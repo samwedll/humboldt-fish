@@ -171,6 +171,7 @@
         <option value={o.id}>{o.label}</option>
       {/each}
     </select>
+    <a href={`/rules?species=${species}&launch=${launch}`} class="rounded-full bg-neutral-100 px-3 py-1 text-sm" data-sveltekit-preload-data="hover">Rules</a>
     <button
       type="button"
       class="ml-auto rounded-full bg-neutral-100 px-3 py-1 text-sm"
@@ -197,12 +198,12 @@
         <button type="button" class="underline" onclick={refresh}>refresh</button> for current verdicts.
       </div>
     {/if}
-    <DayCard verdict={today} {species} {launchLabel} mode="today" {nowMs} now={nowVerdict} />
+    <DayCard verdict={today} {species} {launch} {launchLabel} mode="today" {nowMs} now={nowVerdict} />
 
     <h2 class="mt-5 mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">Next days</h2>
     <div class="space-y-2">
       {#each rest as v, i}
-        <DayCard verdict={v} {species} {launchLabel} mode="row" lowConfidence={i >= 4} />
+        <DayCard verdict={v} {species} {launch} {launchLabel} mode="row" lowConfidence={i >= 4} />
       {/each}
     </div>
 

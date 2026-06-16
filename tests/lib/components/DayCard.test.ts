@@ -33,11 +33,12 @@ describe('DayCard — suppressed launch windows', () => {
     }
   ];
 
-  it('shows the suppressed window’s reason text', () => {
+  it("shows the suppressed window's reason text", () => {
     const { getByText } = render(DayCard, {
       props: {
         verdict: verdictWith(windows),
         species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)',
         mode: 'today'
       }
@@ -50,6 +51,7 @@ describe('DayCard — suppressed launch windows', () => {
       props: {
         verdict: verdictWith(windows),
         species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)',
         mode: 'today'
       }
@@ -73,7 +75,7 @@ describe('DayCard — suppressed launch windows', () => {
     // Simulate an unmigrated/edge payload that still carries the legacy string.
     v.recommendations.window = 'Launch 05:43 PT, return by 09:43 PT (4-hour trip cap)';
     const { getByTestId, queryByText } = render(DayCard, {
-      props: { verdict: v, species: 'surfperch', launchLabel: 'Humboldt Bay (interior)', mode: 'today' }
+      props: { verdict: v, species: 'surfperch', launch: 'humboldt-bay-interior', launchLabel: 'Humboldt Bay (interior)', mode: 'today' }
     });
     expect(getByTestId('suppressed-window')).toBeTruthy();
     // The contradictory legacy "Window:" line must not render alongside the stub.
@@ -85,6 +87,7 @@ describe('DayCard — suppressed launch windows', () => {
       props: {
         verdict: verdictWith(windows),
         species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)',
         mode: 'today'
       }
@@ -111,6 +114,7 @@ describe('DayCard — time awareness', () => {
     const { getAllByTestId } = render(DayCard, {
       props: {
         verdict: verdictWith(msWindows), species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00')
       }
     });
@@ -122,6 +126,7 @@ describe('DayCard — time awareness', () => {
     const { queryAllByTestId } = render(DayCard, {
       props: {
         verdict: verdictWith(msWindows), species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)', mode: 'row', nowMs: PT('14:00')
       }
     });
@@ -132,6 +137,7 @@ describe('DayCard — time awareness', () => {
     const { getByTestId } = render(DayCard, {
       props: {
         verdict: verdictWith(msWindows), species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00'),
         now: {
           verdict: 'GO', reason: 'ok', returnByMs: PT('18:00'),
@@ -146,6 +152,7 @@ describe('DayCard — time awareness', () => {
     const { getAllByTestId, rerender } = render(DayCard, {
       props: {
         verdict: verdictWith(msWindows), species: 'surfperch',
+        launch: 'humboldt-bay-interior',
         launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00')
       }
     });
