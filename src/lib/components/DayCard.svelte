@@ -6,6 +6,8 @@
   import { regs } from '$lib/config/regs.js';
   import { windowState } from '$lib/verdict/windowState.js';
   import CatchRulesCard from './CatchRulesCard.svelte';
+  import Icon from './Icon.svelte';
+  import VerdictPanel from './VerdictPanel.svelte';
 
   type Props = {
     verdict: Verdict;
@@ -19,9 +21,9 @@
   };
   let { verdict, species, launch, launchLabel, mode = 'row', lowConfidence = false, nowMs, now = null }: Props = $props();
 
-  const STATE_BADGE = { past: ['▪', 'past'], active: ['●', 'active now'], upcoming: ['○', 'upcoming'] } as const;
+  const STATE_BADGE = { past: 'past', active: 'active now', upcoming: 'upcoming' } as const;
 
-  function badgeFor(w: LaunchWindow): readonly [string, string] | null {
+  function badgeFor(w: LaunchWindow): string | null {
     if (mode !== 'today' || nowMs === undefined) return null;
     const s = windowState(nowMs, w);
     return s ? STATE_BADGE[s] : null;
@@ -119,7 +121,7 @@
 </script>
 
 <article
-  class={`rounded-lg border border-neutral-200 bg-white ${mode === 'today' ? 'p-4 shadow-sm' : 'p-3'} ${lowConfidence ? 'opacity-60' : ''}`}
+  class={`rounded-lg border border-line bg-surface ${mode === 'today' ? 'p-4 shadow-sm' : 'p-3'} ${lowConfidence ? 'opacity-60' : ''}`}
 >
   <button
     type="button"
@@ -131,14 +133,18 @@
       <span class={`font-semibold ${mode === 'today' ? 'text-lg' : ''}`}>
         {mode === 'today' ? 'Today' : fmtDate(verdict.date)}
       </span>
-      <VerdictPill verdict={verdict.verdict} size={mode === 'today' ? 'lg' : 'sm'} />
+      {#if mode !== 'today'}<VerdictPill verdict={verdict.verdict} size="sm" />{/if}
     </span>
-    <span class="text-sm text-neutral-600 truncate">{verdict.reason}</span>
+    {#if mode !== 'today'}<span class="text-sm text-muted truncate">{verdict.reason}</span>{/if}
   </button>
+
+  {#if mode === 'today'}
+    <div class="mt-3"><VerdictPanel verdict={verdict.verdict} reason={verdict.reason} /></div>
+  {/if}
 
   {#if sourceChip}
     <div
-      class="mt-1 text-xs {sourceChip.hasMissing ? 'text-amber-700' : 'text-neutral-500'}"
+      class="mt-1 text-xs {sourceChip.hasMissing ? 'text-verdict-conditional' : 'text-muted'}"
       data-testid="source-chip"
     >
       {sourceChip.label}
@@ -146,7 +152,7 @@
   {/if}
 
   {#if lowConfidence}
-    <div class="mt-1 text-xs text-neutral-500 italic">Forecast confidence drops past day 5.</div>
+    <div class="mt-1 text-xs text-muted italic">Forecast confidence drops past day 5.</div>
   {/if}
 
   {#if expanded}
@@ -162,53 +168,53 @@
 
     {#if liveWindows.length > 0}
       <div class="mt-3 space-y-2">
-        <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Recommended windows</div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-muted">Recommended windows</div>
         {#each liveWindows as w}
           {@const badge = badgeFor(w)}
-          <div class={`rounded bg-neutral-50 p-3 text-sm ${badge === STATE_BADGE.past ? 'opacity-60' : ''}`}>
+          <div class={`rounded bg-surface2 p-3 text-sm ${badge === STATE_BADGE.past ? 'opacity-60' : ''}`}>
             <div class="flex items-start justify-between gap-2">
               <div class="flex-1">
                 <strong>{w.label}:</strong> Launch {w.launchAt}, return by {w.returnBy}
                 {#if badge}
-                  <span class="ml-2 text-xs text-neutral-500" data-testid="window-state"><span aria-hidden="true">{badge[0]}</span> {badge[1]}</span>
+                  <span class="ml-2 inline-flex items-center gap-1 text-xs text-muted" data-testid="window-state"><span class="window-dot" aria-hidden="true"></span>{badge}</span>
                 {/if}
                 {#if w.tide}
-                  <div class="mt-1 text-xs text-sky-700">🌊 {w.tide.description}</div>
+                  <div class="mt-1 flex items-center gap-1 text-xs text-accent"><Icon name="tide" size={13} /> {w.tide.description}</div>
                 {/if}
                 {#if w.warning}
-                  <div class="mt-1 inline-block rounded border border-yellow-300 bg-yellow-50 px-2 py-0.5 text-xs text-yellow-900">
-                    ⚠ {w.warning}
+                  <div class="callout-caution mt-1 inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs">
+                    <Icon name="warn" size={12} /> {w.warning}
                   </div>
                 {/if}
                 {#if w.rationale}
-                  <div class="mt-1 text-xs text-neutral-600">{w.rationale}</div>
+                  <div class="mt-1 text-xs text-muted">{w.rationale}</div>
                 {/if}
               </div>
               <button
                 type="button"
-                class="shrink-0 rounded border border-neutral-300 bg-white px-2 py-1 text-xs hover:bg-neutral-100"
+                class="shrink-0 rounded border border-line bg-surface px-2 py-1 text-xs hover:bg-surface2"
                 onclick={() => copyShoreMessage(w)}
                 aria-label={`Copy shore comm message for ${w.label} window`}
               >
-                {copiedLabel === w.label ? '✓ Copied' : '📋 Copy shore msg'}
+                {#if copiedLabel === w.label}<Icon name="check" size={13} class="inline" /> Copied{:else}<Icon name="copy" size={13} class="inline" /> Copy shore msg{/if}
               </button>
             </div>
           </div>
         {/each}
       </div>
     {:else if verdict.recommendations.window && suppressedWindows.length === 0}
-      <div class="mt-3 rounded bg-neutral-50 p-3 text-sm">
+      <div class="mt-3 rounded bg-surface2 p-3 text-sm">
         <strong>Window:</strong> {verdict.recommendations.window}
       </div>
     {/if}
 
     {#if suppressedWindows.length > 0}
       <div class="mt-2 space-y-2">
-        <div class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Not available</div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-muted">Not available</div>
         {#each suppressedWindows as w}
           {@const badge = badgeFor(w)}
           <div
-            class="rounded border border-neutral-200 bg-neutral-50 p-3 text-sm opacity-60"
+            class="rounded border border-line bg-surface2 p-3 text-sm opacity-60"
             data-testid="suppressed-window"
           >
             <div>
@@ -217,12 +223,12 @@
               <span class="sr-only">Unavailable — </span>
               <span class="line-through">Launch {w.launchAt}, return by {w.returnBy}</span>
               {#if badge}
-                <span class="ml-2 text-xs text-neutral-500" data-testid="window-state"><span aria-hidden="true">{badge[0]}</span> {badge[1]}</span>
+                <span class="ml-2 inline-flex items-center gap-1 text-xs text-muted" data-testid="window-state"><span class="window-dot" aria-hidden="true"></span>{badge}</span>
               {/if}
             </div>
             {#if w.suppressedReason}
-              <div class="mt-1 text-xs text-neutral-700">
-                <span aria-hidden="true">⛔</span> <span>{w.suppressedReason}</span>
+              <div class="mt-1 text-xs text-muted">
+                <Icon name="block" size={13} class="inline text-verdict-nogo" /> <span>{w.suppressedReason}</span>
               </div>
             {/if}
           </div>
@@ -231,24 +237,24 @@
     {/if}
 
     {#if verdict.recommendations.bailout}
-      <div class="mt-2 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm">
+      <div class="callout-caution mt-2 rounded p-3 text-sm">
         <strong>Bailout plan:</strong> {verdict.recommendations.bailout}
       </div>
     {/if}
 
     {#if tidalCurrentsCheck}
       <div
-        class="mt-2 rounded border border-sky-300 bg-sky-50 p-3 text-sm"
+        class="callout-info mt-2 rounded p-3 text-sm"
         data-testid="tidal-currents-block"
       >
         <strong>Tidal currents:</strong>
         {#if tidalCurrentsCheck.status === 'unknown'}
-          <span class="text-neutral-600">{tidalCurrentsCheck.value}</span>
+          <span class="text-muted">{tidalCurrentsCheck.value}</span>
         {:else}
           {tidalCurrentsCheck.value}
         {/if}
         {#if tidalCurrentsCheck.note}
-          <div class="mt-1 text-xs text-neutral-600">{tidalCurrentsCheck.note}</div>
+          <div class="mt-1 text-xs text-muted">{tidalCurrentsCheck.note}</div>
         {/if}
       </div>
     {/if}
@@ -264,7 +270,7 @@
     {#if verdict.recommendations.gear && verdict.recommendations.gear.length > 0}
       <details class="mt-2">
         <summary class="cursor-pointer text-sm font-medium">Gear pack list</summary>
-        <ul class="ml-4 mt-1 list-disc text-sm text-neutral-700">
+        <ul class="ml-4 mt-1 list-disc text-sm text-muted">
           {#each verdict.recommendations.gear as g}
             <li>{g}</li>
           {/each}
@@ -273,7 +279,7 @@
     {/if}
 
     {#if verdict.verdict === 'GO' || verdict.verdict === 'CONDITIONAL'}
-      <div class="mt-3 rounded border border-neutral-300 bg-neutral-50 p-3 text-xs text-neutral-700">
+      <div class="mt-3 rounded border border-line bg-surface2 p-3 text-xs text-muted">
         <strong>Verify within 2 hours of launch:</strong>
         <ul class="ml-4 mt-1 list-disc">
           <li>USCG Bar status — <a class="underline" href="tel:7078396113">707-839-6113</a> or VHF 22A</li>
@@ -286,3 +292,7 @@
     {/if}
   {/if}
 </article>
+
+<style>
+  .window-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+</style>
