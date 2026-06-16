@@ -43,22 +43,22 @@
 <main class="mx-auto max-w-xl p-3">
   <header class="mb-3 flex items-center justify-between">
     <h1 class="text-lg font-bold">What can I keep?</h1>
-    <a class="rounded-full bg-neutral-100 px-3 py-1 text-sm underline" href={`/?species=${species}&launch=${launch}`}>← Verdict</a>
+    <a class="rounded-full bg-surface2 px-3 py-1 text-sm text-muted underline" href={`/?species=${species}&launch=${launch}`}>← Verdict</a>
   </header>
 
   <select
-    class="mb-2 w-full rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 text-sm"
+    class="mb-2 w-full rounded-full border border-line bg-surface2 px-3 py-1 text-sm"
     value={launch}
     onchange={(e) => pickLaunch((e.currentTarget as HTMLSelectElement).value as LaunchId)}
   >
     {#each launchOptions as o}<option value={o.id}>{o.label}</option>{/each}
   </select>
 
-  <div class="mb-3 flex flex-wrap gap-1 rounded-2xl bg-neutral-100 p-1 text-sm">
+  <div class="mb-3 flex flex-wrap gap-1 rounded-2xl bg-surface2 p-1 text-sm">
     {#each validSpecies as s}
       <button
         type="button"
-        class={`whitespace-nowrap rounded-full px-3 py-1 ${species === s ? 'bg-white font-semibold shadow' : 'text-neutral-600'}`}
+        class={`whitespace-nowrap rounded-full px-3 py-1 ${species === s ? 'bg-accent font-semibold text-on-accent' : 'text-muted'}`}
         onclick={() => pickSpecies(s)}
       >
         {SPECIES_LABEL[s]}

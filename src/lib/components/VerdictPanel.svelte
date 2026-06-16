@@ -13,6 +13,7 @@
 </script>
 
 <div
+  role="status"
   data-verdict={verdict}
   class="verdict-panel"
   style={`--vc:${VAR[verdict]}`}
