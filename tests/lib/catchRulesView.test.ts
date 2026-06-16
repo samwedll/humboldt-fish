@@ -21,4 +21,11 @@ describe('catchRulesView formatters', () => {
     expect(formatSubLimit({ species: 'vermilion + sunset rockfish', daily: 4, note: 'Northern Mgmt Area' }))
       .toBe('vermilion + sunset rockfish: 4 / day (Northern Mgmt Area)');
   });
+  it('returns See notes for an empty bag limit', () => {
+    expect(formatBag({})).toBe('See notes');
+    expect(formatBag({ unit: 'fish' })).toBe('See notes');
+  });
+  it('formats a sub-limit without a note', () => {
+    expect(formatSubLimit({ species: 'canary rockfish', daily: 2 })).toBe('canary rockfish: 2 / day');
+  });
 });
