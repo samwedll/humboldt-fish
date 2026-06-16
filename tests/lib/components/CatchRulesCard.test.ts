@@ -41,4 +41,36 @@ describe('CatchRulesCard', () => {
     expect(screen.getByText(/which trout do i have/i)).toBeInTheDocument();
     expect(screen.getByText(/release it/i)).toBeInTheDocument();
   });
+
+  it('compact mode shows the RELEASE row text for salmon prohibited species', () => {
+    const salmon = regs.salmon;
+    render(CatchRulesCard, {
+      label: salmon.label, rules: salmon.rules, meta: salmon.meta, mode: 'compact'
+    });
+    expect(screen.getByText(/coho/i)).toBeInTheDocument();
+  });
+
+  it('full mode renders SUB-LIMIT rows for rockfish', () => {
+    const rockfish = regs.rockfish;
+    render(CatchRulesCard, {
+      label: rockfish.label, rules: rockfish.rules, meta: rockfish.meta, mode: 'full'
+    });
+    expect(screen.getByText('SUB-LIMIT')).toBeInTheDocument();
+    expect(screen.getByText(/vermilion/i)).toBeInTheDocument();
+  });
+
+  it('full mode shows the season pill when seasonOpen is provided', () => {
+    render(CatchRulesCard, {
+      label: cutthroat.label, rules: cutthroat.rules, meta: cutthroat.meta, mode: 'full',
+      seasonOpen: true
+    });
+    expect(screen.getByText(/season: open/i)).toBeInTheDocument();
+  });
+
+  it('full mode without idGuide does not render the ID guide block', () => {
+    render(CatchRulesCard, {
+      label: cutthroat.label, rules: cutthroat.rules, meta: cutthroat.meta, mode: 'full'
+    });
+    expect(screen.queryByText(/which trout do i have/i)).toBeNull();
+  });
 });

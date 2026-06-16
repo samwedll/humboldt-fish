@@ -3,6 +3,7 @@
   import type { IdGuide } from '$lib/config/identification.js';
   import { formatSize, formatBag, formatSubLimit } from '$lib/catchRulesView.js';
   import RegRow from './RegRow.svelte';
+  import VerifyBadge from './VerifyBadge.svelte';
 
   type Props = {
     label: string;
@@ -17,8 +18,6 @@
 
   const sizeText = $derived(formatSize(rules.size.value));
   const bagText = $derived(formatBag(rules.bag.value));
-  // One-line compact teaser: the two rules that matter most with a fish in hand.
-  const teaser = $derived(`${label.split(' (')[0]} — ${sizeText}, ${bagText}`);
 </script>
 
 {#if mode === 'compact'}
@@ -28,6 +27,7 @@
       <RegRow label="SIZE" value={sizeText} confidence={rules.size.confidence} sourceUrl={meta.sourceUrl} note={rules.size.note} />
       <RegRow label="KEEP" value={bagText} confidence={rules.bag.confidence} sourceUrl={meta.sourceUrl} note={rules.bag.note} />
       {#if rules.prohibited && rules.prohibited.length > 0}
+        <!-- prohibited/release entries are confirmed regulations, not uncertain data — no verify badge by design -->
         <RegRow label="RELEASE" value={rules.prohibited.join('; ')} />
       {/if}
       {#if rulesHref}
@@ -51,11 +51,12 @@
       <RegRow label="SIZE" value={sizeText} confidence={rules.size.confidence} sourceUrl={meta.sourceUrl} note={rules.size.note} />
       <RegRow label="KEEP" value={bagText} confidence={rules.bag.confidence} sourceUrl={meta.sourceUrl} note={rules.bag.note} />
       {#if rules.subLimits}
-        {#each rules.subLimits.value as s}
+        {#each rules.subLimits.value as s (s.species)}
           <RegRow label="SUB-LIMIT" value={formatSubLimit(s)} confidence={rules.subLimits.confidence} sourceUrl={meta.sourceUrl} />
         {/each}
       {/if}
       {#if rules.prohibited && rules.prohibited.length > 0}
+        <!-- prohibited/release entries are confirmed regulations, not uncertain data — no verify badge by design -->
         <RegRow label="RELEASE" value={rules.prohibited.join('; ')} />
       {/if}
       {#if rules.gear}
@@ -74,10 +75,10 @@
         <h3 class="text-sm font-semibold text-amber-900">⚠ {idGuide.title}</h3>
         <p class="mt-1 text-xs text-amber-900">{idGuide.whenUncertain}</p>
         <div class="mt-2 grid gap-2 sm:grid-cols-3">
-          {#each idGuide.candidates as c}
+          {#each idGuide.candidates as c (c.name)}
             <div class="rounded border border-amber-200 bg-white p-2">
               <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-neutral-900">{c.name}</span>
+                <span class="text-xs font-semibold text-neutral-900">{c.name}</span><VerifyBadge confidence={c.tells.confidence} sourceUrl={idGuide.meta.sourceUrl} />
                 <span class="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">{c.origin}</span>
               </div>
               <ul class="ml-3 mt-1 list-disc text-[11px] text-neutral-700">
