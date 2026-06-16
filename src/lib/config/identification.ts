@@ -37,7 +37,9 @@ export const idGuides: IdGuide[] = [
           ],
           // Jaw slash and spots below lateral line confirmed via CDFW Coastal Cutthroat Trout page.
           // Basibranchial teeth mark not found on CDFW — see reference/regs/lagoon-trout-id-2026.md TODO.
-          confidence: 'confirmed'
+          // Candidate marked 'historical' (not 'confirmed') because the tells array contains one
+          // unconfirmed mark; the VerifyBadge must appear so this is not presented as settled law.
+          confidence: 'historical'
         },
         ruleSummary: '1 / day · barbless artificial lure · catch-and-release encouraged',
         rulesSpecies: 'cutthroat'
@@ -54,7 +56,9 @@ export const idGuides: IdGuide[] = [
           ],
           // Lateral band and spot pattern confirmed via CDFW Coastal Rainbow Trout page.
           // Worn/rounded fin mark for hatchery fish not on CDFW page — see reference/regs/lagoon-trout-id-2026.md TODO.
-          confidence: 'confirmed'
+          // Candidate marked 'historical' (not 'confirmed') because the tells array contains one
+          // unconfirmed mark; the VerifyBadge must appear so this is not presented as settled law.
+          confidence: 'historical'
         },
         ruleSummary: '5 / day (inland) · check the planting schedule',
         rulesSpecies: 'rainbow-trout'

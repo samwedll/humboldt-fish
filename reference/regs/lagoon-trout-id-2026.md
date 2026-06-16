@@ -25,7 +25,7 @@ of conservation concern and the 1-fish limit is unforgiving.
 - Body olive to coppery; teeth often present on the back of the tongue (basibranchial)
 - Rules: 1/day, barbless artificial lure, catch-and-release encouraged
 
-**Confidence:** Core field marks (jaw slash, spots below lateral line) confirmed via CDFW Coastal Cutthroat Trout page. Basibranchial teeth mark not found on CDFW page — noted in TODO.
+**Confidence (historical — verify before relying on):** Jaw slash and spots below lateral line confirmed via CDFW Coastal Cutthroat Trout page. Basibranchial teeth mark NOT confirmed by CDFW — see TODO. Because the tells list includes an unconfirmed mark, the candidate as a whole is flagged for verification; do not treat these ID marks as fully settled.
 
 ## Rainbow trout (stocked) — Oncorhynchus mykiss
 
@@ -33,7 +33,7 @@ of conservation concern and the 1-fish limit is unforgiving.
 - Spots concentrated on the upper body and tail; white-to-pink mouth
 - Stocked fish may show worn/rounded fins from the hatchery
 
-**Confidence:** Lateral band and spot pattern confirmed via CDFW Coastal Rainbow Trout page. Worn/rounded fin observation for hatchery fish not confirmed by CDFW — noted in TODO.
+**Confidence (historical — verify before relying on):** Lateral band and spot pattern confirmed via CDFW Coastal Rainbow Trout page. Worn/rounded fin mark for hatchery fish NOT confirmed by CDFW — see TODO. Because the tells list includes an unconfirmed mark, the candidate as a whole is flagged for verification; do not treat these ID marks as fully settled.
 
 - Rules: 5/day (inland), check the planting schedule
 
