@@ -64,7 +64,7 @@
       {/if}
       <RegRow label="LICENSE" value={rules.license.join('; ')} />
       {#if rules.otherRules}
-        {#each rules.otherRules as o}
+        {#each rules.otherRules as o (o)}
           <RegRow label="ALSO" value={o} />
         {/each}
       {/if}
@@ -77,12 +77,12 @@
         <div class="mt-2 grid gap-2 sm:grid-cols-3">
           {#each idGuide.candidates as c (c.name)}
             <div class="rounded border border-amber-200 bg-white p-2">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-neutral-900">{c.name}</span><VerifyBadge confidence={c.tells.confidence} sourceUrl={idGuide.meta.sourceUrl} />
-                <span class="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">{c.origin}</span>
+              <div class="flex items-start justify-between gap-2">
+                <span class="flex flex-wrap items-center gap-1"><span class="text-xs font-semibold text-neutral-900">{c.name}</span><VerifyBadge confidence={c.tells.confidence} sourceUrl={idGuide.meta.sourceUrl} /></span>
+                <span class="shrink-0 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">{c.origin}</span>
               </div>
               <ul class="ml-3 mt-1 list-disc text-[11px] text-neutral-700">
-                {#each c.tells.value as t}<li>{t}</li>{/each}
+                {#each c.tells.value as t (t)}<li>{t}</li>{/each}
               </ul>
               <p class="mt-1 text-[11px] font-medium text-neutral-800">{c.ruleSummary}</p>
             </div>
