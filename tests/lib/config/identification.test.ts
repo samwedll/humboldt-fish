@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { idGuides, idGuideForLaunch } from '../../../src/lib/config/identification.js';
 import { regs } from '../../../src/lib/config/regs.js';
-import type { Species } from '../../../src/lib/types.js';
 
 describe('lagoon trout identification guide', () => {
   it('resolves for each lagoon launch', () => {
@@ -16,14 +15,16 @@ describe('lagoon trout identification guide', () => {
     const g = idGuideForLaunch('big-lagoon')!;
     const names = g.candidates.map((c) => c.origin);
     expect(names).toEqual(expect.arrayContaining(['wild', 'stocked', 'anadromous']));
+    expect(new Set(names).size).toBe(3);
   });
   it('leads with a release-when-uncertain default', () => {
     expect(idGuideForLaunch('big-lagoon')!.whenUncertain.toLowerCase()).toContain('release');
+    expect(idGuideForLaunch('big-lagoon')!.whenUncertain.toLowerCase()).toContain('hybridize');
   });
   it('every rulesSpecies resolves to a real species', () => {
     for (const g of idGuides) {
       for (const c of g.candidates) {
-        if (c.rulesSpecies) expect(regs[c.rulesSpecies as Species]).toBeDefined();
+        if (c.rulesSpecies) expect(regs[c.rulesSpecies]).toBeDefined();
       }
     }
   });
