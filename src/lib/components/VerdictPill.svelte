@@ -14,7 +14,7 @@
 
 <span
   data-verdict={verdict}
-  class={`inline-block rounded-full font-bold uppercase tracking-wide ${classes[verdict]} ${size === 'lg' ? 'px-6 py-2 text-2xl' : 'px-3 py-1 text-xs'}`}
+  class={`inline-block rounded-full font-bold uppercase tracking-wide ${classes[verdict]} ${size === 'lg' ? 'px-4 py-1.5 text-lg' : 'px-3 py-1 text-xs'}`}
 >
   {verdict}
 </span>
