@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Verdict, LayerName, LayerStatus, Check } from '$lib/types.js';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './Icon.svelte';
 
   type Props = { verdict: Verdict };
   let { verdict }: Props = $props();
@@ -11,14 +13,14 @@
     { name: 'logistics', label: 'Logistics' }
   ];
 
-  const icon: Record<LayerStatus, string> = {
-    pass: '✓', warn: '⚠', fail: '✗', incomplete: '?'
+  const iconName: Record<LayerStatus, IconName> = {
+    pass: 'check', warn: 'warn', fail: 'x', incomplete: 'question'
   };
   const iconClass: Record<LayerStatus, string> = {
-    pass: 'text-green-600',
-    warn: 'text-yellow-600',
-    fail: 'text-red-600',
-    incomplete: 'text-neutral-500'
+    pass: 'text-verdict-go',
+    warn: 'text-verdict-conditional',
+    fail: 'text-verdict-nogo',
+    incomplete: 'text-verdict-incomplete'
   };
 
   function checksForLayer(name: LayerName): Check[] {
@@ -36,8 +38,8 @@
   function checkIconClass(status: Check['status']): string {
     return iconClass[status === 'unknown' ? 'incomplete' : status];
   }
-  function checkIcon(status: Check['status']): string {
-    return icon[status === 'unknown' ? 'incomplete' : status];
+  function checkIconName(status: Check['status']): IconName {
+    return iconName[status === 'unknown' ? 'incomplete' : status];
   }
 </script>
 
@@ -46,9 +48,9 @@
     {#each rows as row}
       {@const status = verdict.layers[row.name].status}
       {@const summary = verdict.layers[row.name].summary}
-      <tr class="border-b border-neutral-200 last:border-0">
+      <tr class="border-b border-line last:border-0">
         <td class="py-3 pr-2 align-top w-10">
-          <span class={`text-2xl ${iconClass[status]}`}>{icon[status]}</span>
+          <Icon name={iconName[status]} size={22} class={iconClass[status]} />
         </td>
         <td class="py-3 pr-3 align-top font-semibold w-24">{row.label}</td>
         <td class="py-3 align-top">
@@ -56,18 +58,18 @@
           {#if checksForLayer(row.name).length > 0}
             <button
               type="button"
-              class="mt-1 text-xs underline text-neutral-600"
+              class="mt-1 text-xs underline text-muted"
               onclick={() => toggle(row.name)}
             >
               {expanded[row.name] ? 'Hide' : 'Show'} {checksForLayer(row.name).length} check{checksForLayer(row.name).length === 1 ? '' : 's'}
             </button>
             {#if expanded[row.name]}
-              <ul class="mt-2 space-y-1 text-xs text-neutral-700">
+              <ul class="mt-2 space-y-1 text-xs text-muted">
                 {#each checksForLayer(row.name) as c}
                   <li>
-                    <span class={checkIconClass(c.status)}>{checkIcon(c.status)}</span>
+                    <Icon name={checkIconName(c.status)} size={13} class={checkIconClass(c.status)} />
                     <strong>{c.name}:</strong> {c.value} ({c.threshold})
-                    {#if c.note}<div class="ml-4 italic text-neutral-500">{c.note}</div>{/if}
+                    {#if c.note}<div class="ml-4 italic text-muted">{c.note}</div>{/if}
                   </li>
                 {/each}
               </ul>
