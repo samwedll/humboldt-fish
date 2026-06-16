@@ -65,7 +65,7 @@
   {/if}
 
   {#if obsAgeLabel}
-    <div class="mt-1 text-xs {now.staleness.degraded ? 'font-medium text-verdict-conditional' : 'text-muted'}">
+    <div class="mt-1 font-mono text-xs {now.staleness.degraded ? 'font-medium text-verdict-conditional' : 'text-muted'}">
       Buoy 46244 obs: {obsAgeLabel}
     </div>
   {/if}

@@ -144,7 +144,7 @@
 
   {#if sourceChip}
     <div
-      class="mt-1 text-xs {sourceChip.hasMissing ? 'text-verdict-conditional' : 'text-muted'}"
+      class="mt-1 font-mono text-xs {sourceChip.hasMissing ? 'text-verdict-conditional' : 'text-muted'}"
       data-testid="source-chip"
     >
       {sourceChip.label}

@@ -217,7 +217,7 @@
 
     <footer class="mt-6 border-t border-line pt-3 text-xs text-muted">
       <p><Icon name="info" size={12} class="mr-1 inline" />Data freshness (tap a source to verify directly):</p>
-      <ul class="mt-1 space-y-0.5">
+      <ul class="mt-1 space-y-0.5 font-mono tabular-nums">
         <li class={isStale(response?.freshness.ndbc46244, 'ndbc46244') ? 'text-verdict-nogo' : ''}>
           <a class="underline" href={SOURCE_URLS.ndbc46244} target="_blank" rel="noopener">Buoy 46244</a>: {ago(response?.freshness.ndbc46244)}
         </li>

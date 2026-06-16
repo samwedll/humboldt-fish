@@ -68,7 +68,7 @@
                 {#each checksForLayer(row.name) as c}
                   <li>
                     <Icon name={checkIconName(c.status)} size={13} class={checkIconClass(c.status)} />
-                    <strong>{c.name}:</strong> {c.value} ({c.threshold})
+                    <strong>{c.name}:</strong> <span class="font-mono tabular-nums">{c.value} ({c.threshold})</span>
                     {#if c.note}<div class="ml-4 italic text-muted">{c.note}</div>{/if}
                   </li>
                 {/each}
