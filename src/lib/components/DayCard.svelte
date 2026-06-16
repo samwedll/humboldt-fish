@@ -1,21 +1,23 @@
 <script lang="ts">
-  import type { Verdict, Species, DataSources, LaunchWindow, NowVerdict } from '$lib/types.js';
+  import type { Verdict, Species, DataSources, LaunchWindow, NowVerdict, LaunchId } from '$lib/types.js';
   import VerdictPill from './VerdictPill.svelte';
   import LayerTable from './LayerTable.svelte';
   import NowStrip from './NowStrip.svelte';
   import { regs } from '$lib/config/regs.js';
   import { windowState } from '$lib/verdict/windowState.js';
+  import CatchRulesCard from './CatchRulesCard.svelte';
 
   type Props = {
     verdict: Verdict;
     species: Species;
+    launch: LaunchId;
     launchLabel: string;
     mode?: 'today' | 'row';
     lowConfidence?: boolean;
     nowMs?: number;          // wall-clock from the page's minute tick (today mode)
     now?: NowVerdict | null; // evaluated now-verdict (today mode)
   };
-  let { verdict, species, launchLabel, mode = 'row', lowConfidence = false, nowMs, now = null }: Props = $props();
+  let { verdict, species, launch, launchLabel, mode = 'row', lowConfidence = false, nowMs, now = null }: Props = $props();
 
   const STATE_BADGE = { past: ['▪', 'past'], active: ['●', 'active now'], upcoming: ['○', 'upcoming'] } as const;
 
@@ -250,6 +252,14 @@
         {/if}
       </div>
     {/if}
+
+    <CatchRulesCard
+      label={regs[species].label}
+      rules={regs[species].rules}
+      meta={regs[species].meta}
+      mode="compact"
+      rulesHref={`/rules?species=${species}&launch=${launch}`}
+    />
 
     {#if verdict.recommendations.gear && verdict.recommendations.gear.length > 0}
       <details class="mt-2">
