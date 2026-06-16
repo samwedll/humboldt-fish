@@ -137,7 +137,7 @@ describe('catch rules shape', () => {
 
   it('no species still carries the old requirements field', () => {
     for (const s of allSpecies) {
-      expect((regs[s] as Record<string, unknown>).requirements, s).toBeUndefined();
+      expect((regs[s] as unknown as Record<string, unknown>).requirements, s).toBeUndefined();
     }
   });
 });
