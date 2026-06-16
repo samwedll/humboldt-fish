@@ -55,7 +55,11 @@ Subagent-driven-development (skill `superpowers:subagent-driven-development`): p
 
 ## Resume procedure after the move
 
-1. Move the **whole** directory (keep `.git`, `node_modules`, `.svelte-kit`). pnpm uses a virtual store (`node_modules/.pnpm`); a same-machine move is safe, but run `pnpm install` to be sure.
+> **`node_modules`, `.svelte-kit`, `.wrangler`, and `.superpowers` were deleted before the move** (442 MB → 2.9 MB) to avoid iCloud corrupting pnpm's hardlinks/symlinks. They are gitignored and fully reproducible — `pnpm install` regenerates `node_modules` from the committed `pnpm-lock.yaml`. **Reinstall is required, not optional.**
+>
+> **Strongly recommended:** move the repo OUT of the iCloud-synced area (anything under `~/Desktop` or `~/Documents` with iCloud "Desktop & Documents" on). A dev repo with a large `node_modules` should live somewhere like `~/dev/humboldt-fish` or `~/code/humboldt-fish` to avoid this recurring.
+
+1. Move the directory (it's now just `.git` + tracked source + `pnpm-lock.yaml`).
 2. In the new dir:
    ```
    export PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH"
