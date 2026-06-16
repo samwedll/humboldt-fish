@@ -50,6 +50,9 @@ htmlcov/
 # Serena MCP project metadata
 .serena/
 
+# Superpowers brainstorm/visual-companion scratch
+.superpowers/
+
 # Node / SvelteKit
 node_modules
 .output
