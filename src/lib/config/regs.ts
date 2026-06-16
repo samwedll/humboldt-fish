@@ -15,7 +15,7 @@
  *   the Ocean Enhancement Stamp, so we do not assert it here.
  * - Pacific halibut: requiresHotlineVerify=true is a "verify status before launch" flag,
  *   not a phone-hotline call. hotlinePhone is intentionally undefined.
- * - Dungeness crab: CDPH domoic-acid advisory is surfaced as a requirements line, not
+ * - Dungeness crab: CDPH domoic-acid advisory is surfaced as an `otherRules` entry, not
  *   as a hotline — it's an always-check, not a one-shot call.
  */
 import type { Species, LaunchId } from '../types.js';

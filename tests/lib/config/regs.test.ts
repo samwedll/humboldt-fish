@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isSpeciesOpen, regs } from '../../../src/lib/config/regs.js';
+import type { Confidence } from '../../../src/lib/config/regs.js';
 import type { Species } from '../../../src/lib/types.js';
 
 describe('regulations', () => {
@@ -112,7 +113,7 @@ describe('catch rules content (migrated from requirements[])', () => {
 // ── new structural guarantees ──
 describe('catch rules shape', () => {
   const allSpecies = Object.keys(regs) as Species[];
-  const confidences = ['confirmed', 'historical', 'unverified'];
+  const confidences: Confidence[] = ['confirmed', 'historical', 'unverified'];
 
   it('every species has rules + meta with a valid source URL', () => {
     for (const s of allSpecies) {
