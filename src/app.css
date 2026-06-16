@@ -2,4 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+@layer base {
+  /* Light "day" — default */
+  :root {
+    --bg: #eef3f7;
+    --surface: #ffffff;
+    --surface2: #f1f6fa;
+    --chrome: #0b2b40;
+    --line: #dde8f0;
+    --ink: #16242e;
+    --muted: #5a7286;
+    --accent: #0ea5e9;
+    --v-go: #16a34a;
+    --v-cond: #ca8a04;
+    --v-nogo: #dc2626;
+    --v-inc: #64748b;
+    --on-chrome: #ffffff;
+    --on-accent: #062234;
+  }
+
+  /* Dark "dawn" — the hero. Applied when following the system and the system is dark. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #081420;
+      --surface: #0d1f2e;
+      --surface2: #0a1b29;
+      --chrome: #040c13;
+      --line: #173143;
+      --ink: #e7f0f7;
+      --muted: #7e9bb0;
+      --accent: #38bdf8;
+      --v-go: #2fd07a;
+      --v-cond: #f5b942;
+      --v-nogo: #ff5a5a;
+      --v-inc: #9fb2c0;
+      --on-chrome: #ffffff;
+      --on-accent: #04212f;
+    }
+  }
+  /* Explicit override: user forced dark regardless of system. */
+  [data-theme='dark'] {
+    --bg: #081420;
+    --surface: #0d1f2e;
+    --surface2: #0a1b29;
+    --chrome: #040c13;
+    --line: #173143;
+    --ink: #e7f0f7;
+    --muted: #7e9bb0;
+    --accent: #38bdf8;
+    --v-go: #2fd07a;
+    --v-cond: #f5b942;
+    --v-nogo: #ff5a5a;
+    --v-inc: #9fb2c0;
+    --on-chrome: #ffffff;
+    --on-accent: #04212f;
+  }
+
+  html {
+    font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+}
+
+@layer components {
+  /* Colored callouts — semantic, dual-theme. Used for safety/warning/info blocks. */
+  .callout-danger {
+    border: 1px solid color-mix(in srgb, var(--v-nogo) 45%, var(--line));
+    background: color-mix(in srgb, var(--v-nogo) 12%, var(--surface));
+    color: color-mix(in srgb, var(--v-nogo) 60%, var(--ink));
+  }
+  .callout-caution {
+    border: 1px solid color-mix(in srgb, var(--v-cond) 45%, var(--line));
+    background: color-mix(in srgb, var(--v-cond) 12%, var(--surface));
+    color: color-mix(in srgb, var(--v-cond) 55%, var(--ink));
+  }
+  .callout-info {
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    color: color-mix(in srgb, var(--accent) 55%, var(--ink));
+  }
+}
