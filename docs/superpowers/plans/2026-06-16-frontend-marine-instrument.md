@@ -103,10 +103,6 @@ Replace the entire contents of `src/app.css` with:
 
   /* Dark "dawn" — the hero. Applied when the user forces dark,
      or when following the system and the system is dark. */
-  [data-theme='dark'],
-  :root:not([data-theme='light']) {
-    /* placeholder so the media query below is the single source of dark vars */
-  }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
       --bg: #081420;
