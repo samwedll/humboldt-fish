@@ -12,10 +12,10 @@
 </script>
 
 <div class="flex items-baseline justify-between gap-3 py-1">
-  <span class="shrink-0 text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</span>
-  <span class="text-right text-sm text-neutral-900">
+  <span class="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">{label}</span>
+  <span class="text-right text-sm text-ink">
     {value}
-    {#if note}<span class="text-neutral-500"> · {note}</span>{/if}
+    {#if note}<span class="text-muted"> · {note}</span>{/if}
     {#if confidence && sourceUrl}
       <VerifyBadge {confidence} {sourceUrl} />
     {/if}

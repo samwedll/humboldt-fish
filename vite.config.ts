@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'Humboldt Fish',
         short_name: 'Fish',
         description: 'Should I fish tomorrow? Live North Coast go/no-go + catch rules.',
-        theme_color: '#0c4a6e',
+        theme_color: '#0b2b40',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
@@ -25,11 +25,11 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Leave globPatterns to the plugin's smart defaults — @vite-pwa/sveltekit
-        // precaches BOTH client/** (app shell + bundled regs/identification) and
-        // prerendered/** (the static /rules HTML) under .svelte-kit/output. A flat
-        // custom pattern like ['**/*...'] misses those client//prerendered prefixes,
-        // so do NOT set globPatterns here.
+        // Explicit globPatterns required to include woff2 (offline fonts) — the
+        // plugin default extension list omits woff2. We mirror the SvelteKit-PWA
+        // default coverage (client/** app shell + prerendered/** static HTML/JSON)
+        // and add woff2 so self-hosted fonts are available offline.
+        globPatterns: ['client/**/*.{js,css,ico,png,svg,webp,webmanifest,woff2}', 'prerendered/**/*.{html,json}'],
         navigateFallback: '/',
         skipWaiting: true,
         clientsClaim: true,

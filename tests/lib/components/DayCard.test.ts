@@ -119,7 +119,7 @@ describe('DayCard — time awareness', () => {
       }
     });
     const badges = getAllByTestId('window-state').map((el) => el.textContent?.trim());
-    expect(badges).toEqual(['▪ past', '○ upcoming']);
+    expect(badges).toEqual(['past', 'upcoming']);
   });
 
   it('row mode never renders badges even with nowMs', () => {
@@ -156,8 +156,8 @@ describe('DayCard — time awareness', () => {
         launchLabel: 'Humboldt Bay (interior)', mode: 'today', nowMs: PT('14:00')
       }
     });
-    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['▪ past', '○ upcoming']);
+    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['past', 'upcoming']);
     await rerender({ nowMs: PT('18:30') });
-    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['▪ past', '● active now']);
+    expect(getAllByTestId('window-state').map((el) => el.textContent?.trim())).toEqual(['past', 'active now']);
   });
 });

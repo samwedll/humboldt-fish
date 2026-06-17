@@ -5,6 +5,19 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<meta name="theme-color" content="#0c4a6e" />
+		<script>
+			// Set the theme before first paint to avoid a flash. Mirrors src/lib/theme.ts.
+			(function () {
+				try {
+					var p = localStorage.getItem('hf-theme');
+					var pref = p === 'light' || p === 'dark' ? p : 'system';
+					var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+					if (pref !== 'system') document.documentElement.setAttribute('data-theme', pref);
+					var meta = document.querySelector('meta[name="theme-color"]');
+					if (meta) meta.setAttribute('content', dark ? '#040c13' : '#0b2b40');
+				} catch (e) {}
+			})();
+		</script>
 		<link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
 		%sveltekit.head%
 	</head>
