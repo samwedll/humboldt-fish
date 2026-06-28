@@ -226,6 +226,38 @@ describe('runSafety — future days (NWS prose path)', () => {
     });
     expect(r.result.status).toBe('incomplete');
   });
+
+  it('NWS path + lee exposure: NW swell (315°) in Wave Detail does NOT grant 7 ft — forecast fails closed to ≤ 6 ft', () => {
+    // "Wave Detail: NW 7 ft at 12 seconds" parses to swellDirDeg=315, which is
+    // in the NW arc [300–340]. But the forecast path cannot confirm Trinidad Head
+    // is sheltering (combined-seas vs primary-swell-direction problem), so the
+    // lee bonus must be denied and the limit must stay at 6 ft.
+    // seasFt=7 > limitFt=6 → fail.
+    const r = runSafety({
+      date: '2026-05-19',
+      launch: 'trinidad',
+      exposure: 'lee',
+      data: calmBuoyData({
+        ndbc46244: null,
+        nwsZone: nwsZoneFixture([
+          { name: 'REST OF TODAY', detailedForecast: '' },
+          { name: 'TONIGHT', detailedForecast: '' },
+          { name: 'MON', detailedForecast: '' },
+          { name: 'MON NIGHT', detailedForecast: '' },
+          {
+            name: 'TUE',
+            detailedForecast:
+              'NW wind 5 to 10 kt. Seas 7 ft. Wave Detail: NW 7 ft at 12 seconds.'
+          }
+        ])
+      })
+    });
+    const swellCheck = r.checks.find((c) => c.name === 'Swell height');
+    expect(swellCheck).toBeDefined();
+    expect(swellCheck!.threshold).toBe('≤ 6 ft');
+    expect(swellCheck!.status).toBe('fail');
+    expect(swellCheck!.note).toMatch(/live buoy required/);
+  });
 });
 
 describe('runSafety — protected-water launches (per-launch profile)', () => {
@@ -464,6 +496,23 @@ describe('resolveSwellLimit — Trinidad Head lee', () => {
     const r = resolveSwellLimit(6.5, 320, 'lee', lagoon);
     expect(r.limitFt).toBe(6);
     expect(r.leeNote).toBeUndefined();
+  });
+
+  it('forecast source denies lee even with NW swell — fail at 6.5 ft, leeNote matches /live buoy required/', () => {
+    const r = resolveSwellLimit(6.5, 320, 'lee', tri, 'forecast');
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+    expect(r.leeNote).toMatch(/live buoy required/);
+  });
+
+  it('undefined direction + live-buoy source fails closed to 6 ft', () => {
+    const r = resolveSwellLimit(6.5, undefined, 'lee', tri);
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+  });
+
+  it('open exposure — leeNote is undefined regardless of direction or source', () => {
+    expect(resolveSwellLimit(6.5, 320, 'open', tri).leeNote).toBeUndefined();
   });
 });
 

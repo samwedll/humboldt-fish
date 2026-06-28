@@ -175,7 +175,7 @@ function buoyFactors(
   }
 
   const factors: Check[] = [];
-  const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile);
+  const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile, 'live-buoy');
   factors.push({
     layer: 'safety',
     name: 'Swell height',

@@ -41,26 +41,33 @@ export interface SwellLimit {
 /**
  * Resolve the swell-height limit and pass/warn/fail for a given reading.
  * Trinidad Head shelters from the NW only, so the 7 ft lee bonus applies
- * solely when exposure is 'lee', the launch is open-ocean, AND the swell is
- * from the NW arc (thresholds.leeSwellArcDeg). Fails closed to the 6 ft open
- * limit when direction is unknown or the swell isn't from the NW.
+ * solely when exposure is 'lee', the launch is open-ocean, the swell is from
+ * the NW arc (thresholds.leeSwellArcDeg), AND the direction comes from a live
+ * buoy mean-wave-direction. Forecast prose gives only the primary-swell
+ * direction while its seas height is a combined sea state, so a non-NW
+ * wind-wave could build the height under an NW-parsed swell — we can't confirm
+ * the Head is sheltering. Forecast days therefore fail closed to the 6 ft open
+ * limit. Also fails closed when direction is unknown or not from the NW arc.
  */
 export function resolveSwellLimit(
   heightFt: number,
   swellDirDeg: number | null | undefined,
   exposure: Exposure,
-  profile: LaunchProfile
+  profile: LaunchProfile,
+  directionSource: 'live-buoy' | 'forecast' = 'live-buoy'
 ): SwellLimit {
   const [arcLo, arcHi] = thresholds.leeSwellArcDeg;
   const leeEligible = profile.openOcean && exposure === 'lee';
   const inArc = swellDirDeg != null && swellDirDeg >= arcLo && swellDirDeg <= arcHi;
-  const leeGranted = leeEligible && inArc;
+  const leeGranted = leeEligible && directionSource === 'live-buoy' && inArc;
   const limitFt = leeGranted ? thresholds.swellHeightLeeFt : thresholds.swellHeightFt;
 
   let leeNote: string | undefined;
   if (leeEligible) {
     if (leeGranted) {
       leeNote = `lee granted: NW swell (${swellDirDeg}°) behind Trinidad Head — ${limitFt} ft limit`;
+    } else if (directionSource === 'forecast') {
+      leeNote = `lee denied: forecast can't confirm the Head's NW shelter (combined seas vs primary-swell direction) — live buoy required, ${thresholds.swellHeightFt} ft limit`;
     } else if (swellDirDeg == null) {
       leeNote = `lee denied: swell direction unknown — fail-closed to ${thresholds.swellHeightFt} ft`;
     } else {
@@ -258,7 +265,7 @@ function runSafetyFromBuoy(
     });
   }
   if (profile.requiresSwellCheck && buoy.waveHtFt !== null) {
-    const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile);
+    const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile, 'live-buoy');
     checks.push({
       layer: 'safety',
       name: 'Swell height',
@@ -356,7 +363,7 @@ function runSafetyFromNws(
     });
   }
   if (profile.requiresSwellCheck && p.seasFt !== undefined) {
-    const lim = resolveSwellLimit(p.seasFt, p.swellDirDeg, exposure, profile);
+    const lim = resolveSwellLimit(p.seasFt, p.swellDirDeg, exposure, profile, 'forecast');
     checks.push({
       layer: 'safety',
       name: 'Swell height',
