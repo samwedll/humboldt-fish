@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Species, LaunchId, VerdictResponse } from '$lib/types.js';
+  import type { Species, LaunchId, VerdictResponse, Exposure } from '$lib/types.js';
   import DayCard from '$lib/components/DayCard.svelte';
   import { evaluateNow } from '$lib/verdict/evaluateNow.js';
   import { launches, getLaunch } from '$lib/config/launches.js';
@@ -26,9 +26,15 @@
     return valid[0];
   }
 
+  function initialExposure(): Exposure {
+    if (typeof window === 'undefined') return 'open';
+    return new URLSearchParams(window.location.search).get('exposure') === 'lee' ? 'lee' : 'open';
+  }
+
   const startLaunch = initialLaunch();
   let launch: LaunchId = $state(startLaunch);
   let species: Species = $state(initialSpecies(startLaunch));
+  let exposure: Exposure = $state(initialExposure());
   let validSpecies = $derived(speciesLaunchCompat[launch]);
   let launchLabel = $derived(getLaunch(launch).label);
 
@@ -40,7 +46,7 @@
     refreshing = true;
     pageError = null;
     try {
-      const qs = new URLSearchParams({ species, launch, days: '7' });
+      const qs = new URLSearchParams({ species, launch, exposure, days: '7' });
       if (extra.refresh) qs.set('refresh', 'true');
       const res = await fetch(`/api/verdict?${qs.toString()}`);
       if (res.ok) {
@@ -59,11 +65,18 @@
     const qs = new URLSearchParams(window.location.search);
     qs.set('species', species);
     qs.set('launch', launch);
+    qs.set('exposure', exposure);
     history.replaceState({}, '', `?${qs.toString()}`);
   }
 
   async function setSpecies(s: Species) {
     species = s;
+    syncUrl();
+    await reload();
+  }
+
+  async function setExposure(e: Exposure) {
+    exposure = e;
     syncUrl();
     await reload();
   }
@@ -103,7 +116,7 @@
     };
   });
 
-  let nowVerdict = $derived(today ? evaluateNow(nowMs, today, { launch, species }) : null);
+  let nowVerdict = $derived(today ? evaluateNow(nowMs, today, { launch, species, exposure }) : null);
   // evaluateNow returns null on a date mismatch — if nowData exists but the
   // verdict is null, the tab crossed midnight PT on a stale payload.
   let rolledOver = $derived(!!today?.nowData && nowVerdict === null);
@@ -178,6 +191,24 @@
         <option value={o.id}>{o.label}</option>
       {/each}
     </select>
+    {#if launch === 'trinidad'}
+      <div class="flex gap-1 rounded-2xl bg-black/20 p-1 text-xs" role="group" aria-label="Exposure">
+        <button
+          type="button"
+          class={`whitespace-nowrap rounded-full px-3 py-1 ${exposure === 'open' ? 'bg-accent font-semibold text-on-accent' : 'text-on-chrome/70'}`}
+          onclick={() => setExposure('open')}
+          aria-pressed={exposure === 'open'}
+          title="Open Pacific — swell ≤ 6 ft"
+        >Open Pacific</button>
+        <button
+          type="button"
+          class={`whitespace-nowrap rounded-full px-3 py-1 ${exposure === 'lee' ? 'bg-accent font-semibold text-on-accent' : 'text-on-chrome/70'}`}
+          onclick={() => setExposure('lee')}
+          aria-pressed={exposure === 'lee'}
+          title="Inside the lee (behind Trinidad Head) — swell ≤ 7 ft when from the NW"
+        >Inside the lee</button>
+      </div>
+    {/if}
     <a href={`/rules?species=${species}&launch=${launch}`} class="rounded-full bg-black/20 px-3 py-1 text-sm text-on-chrome" data-sveltekit-preload-data="hover">Rules</a>
     <button
       type="button"
