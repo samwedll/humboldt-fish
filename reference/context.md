@@ -69,7 +69,6 @@
 
 - **MirageDrive 360 with Kick-Up Turbo Fins** ($1,300) — best manual drive upgrade
 - **MD180 Kick-Up Turbo Fin upgrade kit** ($300) — cheaper drive upgrade alternative
-- **Bixpy K-1 motor + battery + Hobie adapter** ($1,800) — electric retrofit, fall 2026 decision after season of real use
 
 ---
 
@@ -99,6 +98,7 @@
 - ✅ **Dry bags** (multiple)
 - ✅ **Spare paddle** (came with boat)
 - ✅ **Bilge pump**
+- ✅ **Electric drive:** Bixpy K-1 motor + 768 Wh battery + Hobie adapter (acquired June 2026). **Does not relax any go/no-go threshold** — motors and batteries fail, and cold water sharply cuts battery capacity. Year-1 role: bailout / get-home margin and holding position, not a license to launch in worse conditions.
 
 
 ### Ordered / Pending
@@ -328,7 +328,6 @@ The user is an experienced freshwater paddler. The transition skills to develop:
 - [ ] Salmon trolling: dual-use rod or dedicated trolling setup?
 - [ ] Downrigger vs. diver decision for salmon
 - [ ] Garmin device strategy (Mini 3 only vs. Mini 3 + Montana 760i)
-- [ ] Bixpy electric retrofit decision (fall 2026, after season of real use)
 - [ ] First launch site and date (lagoon shakedown vs. wait for PLB arrival)
 
 ---
