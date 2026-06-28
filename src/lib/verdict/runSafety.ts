@@ -6,7 +6,8 @@ import type {
   LaunchId,
   NwsZoneForecast,
   NwsZonePeriod,
-  NdbcObservation
+  NdbcObservation,
+  Exposure
 } from '../types.js';
 import { thresholds, WARN_BAND } from '../config/thresholds.js';
 import { parseMarineProse, deriveDateForPeriod, parsePointWind, findPointPeriodForDate } from './parseMarineProse.js';
@@ -28,6 +29,44 @@ export function evalAbove(value: number, failAt: number): CheckStatus {
   if (value > failAt) return 'fail';
   if (value >= failAt * (1 - WARN_BAND)) return 'warn';
   return 'pass';
+}
+
+export interface SwellLimit {
+  limitFt: number;
+  status: CheckStatus;
+  leeNote?: string;
+}
+
+/**
+ * Resolve the swell-height limit and pass/warn/fail for a given reading.
+ * Trinidad Head shelters from the NW only, so the 7 ft lee bonus applies
+ * solely when exposure is 'lee', the launch is open-ocean, AND the swell is
+ * from the NW arc (thresholds.leeSwellArcDeg). Fails closed to the 6 ft open
+ * limit when direction is unknown or the swell isn't from the NW.
+ */
+export function resolveSwellLimit(
+  heightFt: number,
+  swellDirDeg: number | null | undefined,
+  exposure: Exposure,
+  profile: LaunchProfile
+): SwellLimit {
+  const [arcLo, arcHi] = thresholds.leeSwellArcDeg;
+  const leeEligible = profile.openOcean && exposure === 'lee';
+  const inArc = swellDirDeg != null && swellDirDeg >= arcLo && swellDirDeg <= arcHi;
+  const leeGranted = leeEligible && inArc;
+  const limitFt = leeGranted ? thresholds.swellHeightLeeFt : thresholds.swellHeightFt;
+
+  let leeNote: string | undefined;
+  if (leeEligible) {
+    if (leeGranted) {
+      leeNote = `lee granted: NW swell (${swellDirDeg}°) behind Trinidad Head — ${limitFt} ft limit`;
+    } else if (swellDirDeg == null) {
+      leeNote = `lee denied: swell direction unknown — fail-closed to ${thresholds.swellHeightFt} ft`;
+    } else {
+      leeNote = `lee denied: swell ${swellDirDeg}° not from NW (${arcLo}–${arcHi}°) — ${thresholds.swellHeightFt} ft limit`;
+    }
+  }
+  return { limitFt, status: evalAbove(heightFt, limitFt), leeNote };
 }
 
 export function evalAtLeast(value: number, failBelow: number): CheckStatus {

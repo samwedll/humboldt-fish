@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { runSafety } from '../../../src/lib/verdict/runSafety.js';
+import { runSafety, resolveSwellLimit } from '../../../src/lib/verdict/runSafety.js';
+import { getLaunch } from '../../../src/lib/config/launches.js';
 import type { FetchedData } from '../../../src/lib/types.js';
 
 function calmBuoyData(overrides: Partial<FetchedData> = {}): FetchedData {
@@ -421,6 +422,48 @@ describe('runSafety — point-forecast wind (location-aware)', () => {
     expect(r.result.status).toBe('fail');
     const windCheck = r.checks.find((c) => c.name === 'Sustained wind');
     expect(windCheck?.note).toMatch(/point forecast/i);
+  });
+});
+
+describe('resolveSwellLimit — Trinidad Head lee', () => {
+  const tri = getLaunch('trinidad');
+  const lagoon = getLaunch('big-lagoon');
+
+  it('open exposure uses the 6 ft limit', () => {
+    expect(resolveSwellLimit(6.1, 320, 'open', tri).status).toBe('fail');
+    expect(resolveSwellLimit(5.9, 320, 'open', tri).status).not.toBe('fail');
+  });
+
+  it('lee + NW swell (320°) grants the 7 ft limit', () => {
+    const r = resolveSwellLimit(6.9, 320, 'lee', tri);
+    expect(r.limitFt).toBe(7);
+    expect(r.status).not.toBe('fail');
+    expect(resolveSwellLimit(7.1, 320, 'lee', tri).status).toBe('fail');
+  });
+
+  it('arc bounds are inclusive (300 and 340 grant the lee)', () => {
+    expect(resolveSwellLimit(6.5, 300, 'lee', tri).limitFt).toBe(7);
+    expect(resolveSwellLimit(6.5, 340, 'lee', tri).limitFt).toBe(7);
+  });
+
+  it('lee + W swell (270°) is denied → 6 ft limit, fails at 6.5 ft', () => {
+    const r = resolveSwellLimit(6.5, 270, 'lee', tri);
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+    expect(r.leeNote).toMatch(/not from NW/);
+  });
+
+  it('lee + unknown direction fails closed to 6 ft', () => {
+    const r = resolveSwellLimit(6.5, null, 'lee', tri);
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+    expect(r.leeNote).toMatch(/direction unknown/);
+  });
+
+  it('lee on a non-ocean launch is ignored → 6 ft, no lee note', () => {
+    const r = resolveSwellLimit(6.5, 320, 'lee', lagoon);
+    expect(r.limitFt).toBe(6);
+    expect(r.leeNote).toBeUndefined();
   });
 });
 
