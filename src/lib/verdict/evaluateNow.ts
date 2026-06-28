@@ -5,11 +5,11 @@
  *
  * Spec: docs/superpowers/specs/2026-06-10-fish-now-design.md
  */
-import type { Verdict, LaunchId, Species, NowVerdict, NowData, Check, CheckStatus } from '../types.js';
+import type { Verdict, LaunchId, Species, NowVerdict, NowData, Check, CheckStatus, Exposure } from '../types.js';
 import { getLaunch, type LaunchProfile } from '../config/launches.js';
 import { thresholds } from '../config/thresholds.js';
 import { clampReturnByForEbb, annotateWindowWithTide } from './runLogistics.js';
-import { evalAbove, evalAtLeast } from './runSafety.js';
+import { evalAbove, evalAtLeast, resolveSwellLimit } from './runSafety.js';
 import { parsePointWind } from './parseMarineProse.js';
 import { formatPacificTime, toPacificLocalISO, ptLocalIsoToEpochMs } from '../format.js';
 import { checklistFor } from '../config/checklist.js';
@@ -128,7 +128,8 @@ function angularDiffDeg(a: number, b: number): number {
 function buoyFactors(
   tMs: number,
   nowData: NowData,
-  profile: LaunchProfile
+  profile: LaunchProfile,
+  exposure: Exposure
 ): { factors: Check[]; obsAgeMs: number | null; degraded: boolean } {
   if (!profile.openOcean || !profile.requiresSwellCheck) {
     return { factors: [], obsAgeMs: null, degraded: false };
@@ -174,12 +175,14 @@ function buoyFactors(
   }
 
   const factors: Check[] = [];
+  const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile);
   factors.push({
     layer: 'safety',
     name: 'Swell height',
     value: `${buoy.waveHtFt.toFixed(1)} ft`,
-    threshold: `≤ ${thresholds.swellHeightFt} ft`,
-    status: evalAbove(buoy.waveHtFt, thresholds.swellHeightFt)
+    threshold: `≤ ${lim.limitFt} ft`,
+    status: lim.status,
+    ...(lim.leeNote ? { note: lim.leeNote } : {})
   });
   if (buoy.dominantPeriodSec !== null) {
     factors.push({
@@ -277,7 +280,7 @@ function windFactor(
 export function evaluateNow(
   nowMs: number,
   day: Verdict,
-  ctx: { launch: LaunchId; species: Species }
+  ctx: { launch: LaunchId; species: Species; exposure?: Exposure }
 ): NowVerdict | null {
   const nowData = day.nowData;
   if (!nowData) return null;
@@ -286,6 +289,7 @@ export function evaluateNow(
   if (toPacificLocalISO(new Date(nowMs)).slice(0, 10) !== nowData.date) return null;
 
   const profile = getLaunch(ctx.launch);
+  const exposure: Exposure = ctx.exposure ?? 'open';
   const baseStaleness = nowData.buoy
     ? {
         obsAgeMs: nowMs - nowData.buoy.observedAtMs,
@@ -319,7 +323,7 @@ export function evaluateNow(
   }
 
   const conditionsAt = (tMs: number, returnByMs: number) => {
-    const b = buoyFactors(tMs, nowData, profile);
+    const b = buoyFactors(tMs, nowData, profile, exposure);
     const factors = [...b.factors];
     const w = windFactor(tMs, returnByMs, nowData, profile, day);
     if (w) factors.push(w);
