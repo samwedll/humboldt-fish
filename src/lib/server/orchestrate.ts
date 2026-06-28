@@ -9,7 +9,8 @@ import type {
   Species,
   LaunchId,
   Verdict,
-  VerdictResponse
+  VerdictResponse,
+  Exposure
 } from '../types.js';
 import type { FetchResult } from '../fetchers/ndbc.js';
 import { computeVerdict } from '../verdict/computeVerdict.js';
@@ -32,6 +33,7 @@ export interface Fetchers {
 export interface OrchestrateInput {
   species: Species;
   launch: LaunchId;
+  exposure?: Exposure;
   days: number;
   today: string;
   fetchers: Fetchers;
@@ -44,7 +46,7 @@ function addDays(dateISO: string, n: number): string {
 }
 
 export async function orchestrateVerdict(input: OrchestrateInput): Promise<VerdictResponse> {
-  const { species, launch, days, today, fetchers } = input;
+  const { species, launch, exposure = 'open', days, today, fetchers } = input;
   const dates: string[] = [];
   for (let i = 0; i < days; i++) dates.push(addDays(today, i));
 
@@ -69,7 +71,7 @@ export async function orchestrateVerdict(input: OrchestrateInput): Promise<Verdi
   };
 
   const verdicts: Verdict[] = dates.map((date) =>
-    computeVerdict({ date, today, species, launch, data })
+    computeVerdict({ date, today, species, launch, exposure, data })
   );
 
   return {

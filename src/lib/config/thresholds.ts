@@ -7,7 +7,9 @@ export const thresholds = {
   windSustainedLaunchKt: 10,
   windSustainedTripKt: 15,
   windGustKt: 15,
-  swellHeightFt: 5,
+  swellHeightFt: 6,        // open Pacific (was 5; user upgrade path, June 2026)
+  swellHeightLeeFt: 7,     // Trinidad Head lee, NW swell only
+  leeSwellArcDeg: [300, 340] as const, // NW shelter arc (inclusive), degrees true
   swellPeriodSec: 10,
   windSwellAlignmentDeg: 45,
   visibilityNm: 1,

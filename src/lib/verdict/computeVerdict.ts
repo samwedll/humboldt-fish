@@ -7,7 +7,8 @@ import type {
   LayerResult,
   Check,
   DataSources,
-  SourcePresence
+  SourcePresence,
+  Exposure
 } from '../types.js';
 import { runLegal } from './runLegal.js';
 import { runSafety } from './runSafety.js';
@@ -23,6 +24,7 @@ export interface ComputeInput {
                   // Optional so unit tests don't have to set it; the orchestrator always supplies it.
   species: Species;
   launch: LaunchId;
+  exposure?: Exposure;
   data: FetchedData;
 }
 
@@ -89,7 +91,7 @@ function summarizeDataSources({
 }
 
 function computeVerdictCore(input: ComputeInput): Verdict {
-  const { date, today = '0000-00-00', species, launch, data } = input;
+  const { date, today = '0000-00-00', species, launch, exposure = 'open', data } = input;
   const checks: Check[] = [];
   const layers: Record<LayerName, LayerResult> = {
     legal: NOT_RUN,
@@ -114,7 +116,7 @@ function computeVerdictCore(input: ComputeInput): Verdict {
     };
   }
 
-  const safety = runSafety({ date, today, launch, data });
+  const safety = runSafety({ date, today, launch, exposure, data });
   layers.safety = safety.result;
   checks.push(...safety.checks);
   if (safety.result.status === 'fail') {

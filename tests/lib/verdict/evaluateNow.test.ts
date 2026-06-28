@@ -327,6 +327,27 @@ describe('evaluateNow — degraded data', () => {
   });
 });
 
+describe('evaluateNow — Trinidad lee exposure', () => {
+  const nwBuoy = trinidadNowData({
+    buoy: {
+      observedAt: new Date(PT('13:50')).toISOString(),
+      observedAtMs: PT('13:50'),
+      windKt: null, gustKt: null, windDirDeg: null,
+      waveHtFt: 6.5, dominantPeriodSec: 12, meanWaveDirDeg: 320, waterTempF: 52
+    }
+  });
+
+  it('6.5 ft NW swell: open exposure fails swell height', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(nwBuoy), TRINIDAD)!;
+    expect(r.factors.find((f) => f.name === 'Swell height')?.status).toBe('fail');
+  });
+
+  it('6.5 ft NW swell: lee exposure clears swell height', () => {
+    const r = evaluateNow(PT('14:00'), dayVerdict(nwBuoy), { ...TRINIDAD, exposure: 'lee' })!;
+    expect(r.factors.find((f) => f.name === 'Swell height')?.status).not.toBe('fail');
+  });
+});
+
 describe('evaluateNow — assembly extras', () => {
   it('GO carries launchByMs (last start with ≥2h before dusk), checklist, footer', () => {
     const r = evaluateNow(PT('14:00'), dayVerdict(trinidadNowData()), TRINIDAD)!;

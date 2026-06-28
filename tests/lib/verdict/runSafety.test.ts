@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { runSafety } from '../../../src/lib/verdict/runSafety.js';
+import { runSafety, resolveSwellLimit } from '../../../src/lib/verdict/runSafety.js';
+import { getLaunch } from '../../../src/lib/config/launches.js';
 import type { FetchedData } from '../../../src/lib/types.js';
 
 function calmBuoyData(overrides: Partial<FetchedData> = {}): FetchedData {
@@ -225,6 +226,38 @@ describe('runSafety — future days (NWS prose path)', () => {
     });
     expect(r.result.status).toBe('incomplete');
   });
+
+  it('NWS path + lee exposure: NW swell (315°) in Wave Detail does NOT grant 7 ft — forecast fails closed to ≤ 6 ft', () => {
+    // "Wave Detail: NW 7 ft at 12 seconds" parses to swellDirDeg=315, which is
+    // in the NW arc [300–340]. But the forecast path cannot confirm Trinidad Head
+    // is sheltering (combined-seas vs primary-swell-direction problem), so the
+    // lee bonus must be denied and the limit must stay at 6 ft.
+    // seasFt=7 > limitFt=6 → fail.
+    const r = runSafety({
+      date: '2026-05-19',
+      launch: 'trinidad',
+      exposure: 'lee',
+      data: calmBuoyData({
+        ndbc46244: null,
+        nwsZone: nwsZoneFixture([
+          { name: 'REST OF TODAY', detailedForecast: '' },
+          { name: 'TONIGHT', detailedForecast: '' },
+          { name: 'MON', detailedForecast: '' },
+          { name: 'MON NIGHT', detailedForecast: '' },
+          {
+            name: 'TUE',
+            detailedForecast:
+              'NW wind 5 to 10 kt. Seas 7 ft. Wave Detail: NW 7 ft at 12 seconds.'
+          }
+        ])
+      })
+    });
+    const swellCheck = r.checks.find((c) => c.name === 'Swell height');
+    expect(swellCheck).toBeDefined();
+    expect(swellCheck!.threshold).toBe('≤ 6 ft');
+    expect(swellCheck!.status).toBe('fail');
+    expect(swellCheck!.note).toMatch(/live buoy required/);
+  });
 });
 
 describe('runSafety — protected-water launches (per-launch profile)', () => {
@@ -424,6 +457,65 @@ describe('runSafety — point-forecast wind (location-aware)', () => {
   });
 });
 
+describe('resolveSwellLimit — Trinidad Head lee', () => {
+  const tri = getLaunch('trinidad');
+  const lagoon = getLaunch('big-lagoon');
+
+  it('open exposure uses the 6 ft limit', () => {
+    expect(resolveSwellLimit(6.1, 320, 'open', tri).status).toBe('fail');
+    expect(resolveSwellLimit(5.9, 320, 'open', tri).status).not.toBe('fail');
+  });
+
+  it('lee + NW swell (320°) grants the 7 ft limit', () => {
+    const r = resolveSwellLimit(6.9, 320, 'lee', tri);
+    expect(r.limitFt).toBe(7);
+    expect(r.status).not.toBe('fail');
+    expect(resolveSwellLimit(7.1, 320, 'lee', tri).status).toBe('fail');
+  });
+
+  it('arc bounds are inclusive (300 and 340 grant the lee)', () => {
+    expect(resolveSwellLimit(6.5, 300, 'lee', tri).limitFt).toBe(7);
+    expect(resolveSwellLimit(6.5, 340, 'lee', tri).limitFt).toBe(7);
+  });
+
+  it('lee + W swell (270°) is denied → 6 ft limit, fails at 6.5 ft', () => {
+    const r = resolveSwellLimit(6.5, 270, 'lee', tri);
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+    expect(r.leeNote).toMatch(/not from NW/);
+  });
+
+  it('lee + unknown direction fails closed to 6 ft', () => {
+    const r = resolveSwellLimit(6.5, null, 'lee', tri);
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+    expect(r.leeNote).toMatch(/direction unknown/);
+  });
+
+  it('lee on a non-ocean launch is ignored → 6 ft, no lee note', () => {
+    const r = resolveSwellLimit(6.5, 320, 'lee', lagoon);
+    expect(r.limitFt).toBe(6);
+    expect(r.leeNote).toBeUndefined();
+  });
+
+  it('forecast source denies lee even with NW swell — fail at 6.5 ft, leeNote matches /live buoy required/', () => {
+    const r = resolveSwellLimit(6.5, 320, 'lee', tri, 'forecast');
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+    expect(r.leeNote).toMatch(/live buoy required/);
+  });
+
+  it('undefined direction + live-buoy source fails closed to 6 ft', () => {
+    const r = resolveSwellLimit(6.5, undefined, 'lee', tri);
+    expect(r.limitFt).toBe(6);
+    expect(r.status).toBe('fail');
+  });
+
+  it('open exposure — leeNote is undefined regardless of direction or source', () => {
+    expect(resolveSwellLimit(6.5, 320, 'open', tri).leeNote).toBeUndefined();
+  });
+});
+
 describe('runSafety — Trinidad-today live-buoy gate', () => {
   it('Trinidad + today + buoy missing → INCOMPLETE (the May-17-style silent failure guard)', () => {
     // Forecast says calm via NWS, but the live buoy is dark. We must NOT silently
@@ -526,5 +618,35 @@ describe('runSafety — Trinidad-today live-buoy gate', () => {
       }
     });
     expect(r.result.status).toBe('pass');
+  });
+});
+
+describe('runSafety — exposure threading (buoy path)', () => {
+  function buoyAt(waveHtFt: number, meanWaveDirDeg: number) {
+    return calmBuoyData({
+      ndbc46244: {
+        observedAt: '2026-05-17T14:00:00Z',
+        windKt: 6, gustKt: 8, windDirDeg: meanWaveDirDeg,
+        waveHtFt, dominantPeriodSec: 12, meanWaveDirDeg, waterTempF: 52
+      }
+    });
+  }
+
+  it('6.5 ft NW swell: open → fail, lee → not fail', () => {
+    const open = runSafety({ date: '2026-05-17', launch: 'trinidad', data: buoyAt(6.5, 320) });
+    expect(open.checks.find((c) => c.name === 'Swell height')?.status).toBe('fail');
+
+    const lee = runSafety({ date: '2026-05-17', launch: 'trinidad', exposure: 'lee', data: buoyAt(6.5, 320) });
+    expect(lee.checks.find((c) => c.name === 'Swell height')?.status).not.toBe('fail');
+  });
+
+  it('6.5 ft W swell (270°) with lee → still fail (direction gate)', () => {
+    const lee = runSafety({ date: '2026-05-17', launch: 'trinidad', exposure: 'lee', data: buoyAt(6.5, 270) });
+    expect(lee.checks.find((c) => c.name === 'Swell height')?.status).toBe('fail');
+  });
+
+  it('lee Swell-height check reports the resolved limit in its threshold', () => {
+    const lee = runSafety({ date: '2026-05-17', launch: 'trinidad', exposure: 'lee', data: buoyAt(6.5, 320) });
+    expect(lee.checks.find((c) => c.name === 'Swell height')?.threshold).toBe('≤ 7 ft');
   });
 });

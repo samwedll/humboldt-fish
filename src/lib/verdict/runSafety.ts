@@ -6,7 +6,8 @@ import type {
   LaunchId,
   NwsZoneForecast,
   NwsZonePeriod,
-  NdbcObservation
+  NdbcObservation,
+  Exposure
 } from '../types.js';
 import { thresholds, WARN_BAND } from '../config/thresholds.js';
 import { parseMarineProse, deriveDateForPeriod, parsePointWind, findPointPeriodForDate } from './parseMarineProse.js';
@@ -17,6 +18,7 @@ export interface SafetyInput {
   today?: string;   // YYYY-MM-DD Pacific — today, used to gate "live buoy required" rule.
                     // Defaults to a sentinel that never matches a real date so the gate is opt-in.
   launch: LaunchId;
+  exposure?: Exposure;
   data: FetchedData;
 }
 export interface SafetyOutput {
@@ -28,6 +30,51 @@ export function evalAbove(value: number, failAt: number): CheckStatus {
   if (value > failAt) return 'fail';
   if (value >= failAt * (1 - WARN_BAND)) return 'warn';
   return 'pass';
+}
+
+export interface SwellLimit {
+  limitFt: number;
+  status: CheckStatus;
+  leeNote?: string;
+}
+
+/**
+ * Resolve the swell-height limit and pass/warn/fail for a given reading.
+ * Trinidad Head shelters from the NW only, so the 7 ft lee bonus applies
+ * solely when exposure is 'lee', the launch is open-ocean, the swell is from
+ * the NW arc (thresholds.leeSwellArcDeg), AND the direction comes from a live
+ * buoy mean-wave-direction. Forecast prose gives only the primary-swell
+ * direction while its seas height is a combined sea state, so a non-NW
+ * wind-wave could build the height under an NW-parsed swell — we can't confirm
+ * the Head is sheltering. Forecast days therefore fail closed to the 6 ft open
+ * limit. Also fails closed when direction is unknown or not from the NW arc.
+ */
+export function resolveSwellLimit(
+  heightFt: number,
+  swellDirDeg: number | null | undefined,
+  exposure: Exposure,
+  profile: LaunchProfile,
+  directionSource: 'live-buoy' | 'forecast' = 'live-buoy'
+): SwellLimit {
+  const [arcLo, arcHi] = thresholds.leeSwellArcDeg;
+  const leeEligible = profile.openOcean && exposure === 'lee';
+  const inArc = swellDirDeg != null && swellDirDeg >= arcLo && swellDirDeg <= arcHi;
+  const leeGranted = leeEligible && directionSource === 'live-buoy' && inArc;
+  const limitFt = leeGranted ? thresholds.swellHeightLeeFt : thresholds.swellHeightFt;
+
+  let leeNote: string | undefined;
+  if (leeEligible) {
+    if (leeGranted) {
+      leeNote = `lee granted: NW swell (${swellDirDeg}°) behind Trinidad Head — ${limitFt} ft limit`;
+    } else if (directionSource === 'forecast') {
+      leeNote = `lee denied: forecast can't confirm the Head's NW shelter (combined seas vs primary-swell direction) — live buoy required, ${thresholds.swellHeightFt} ft limit`;
+    } else if (swellDirDeg == null) {
+      leeNote = `lee denied: swell direction unknown — fail-closed to ${thresholds.swellHeightFt} ft`;
+    } else {
+      leeNote = `lee denied: swell ${swellDirDeg}° not from NW (${arcLo}–${arcHi}°) — ${thresholds.swellHeightFt} ft limit`;
+    }
+  }
+  return { limitFt, status: evalAbove(heightFt, limitFt), leeNote };
 }
 
 export function evalAtLeast(value: number, failBelow: number): CheckStatus {
@@ -115,7 +162,7 @@ function pointWindChecks(
   ];
 }
 
-export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyInput): SafetyOutput {
+export function runSafety({ date, today = '0000-00-00', launch, exposure = 'open', data }: SafetyInput): SafetyOutput {
   const profile = getLaunch(launch);
   const buoy = data.ndbc46244;
   const buoyMatchesDate = buoy && ndbcDatePacific(buoy.observedAt) === date;
@@ -152,7 +199,7 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
   // through to the NWS prose path, which incorporates point-forecast wind
   // when available and zone-forecast prose when it isn't.
   if (buoyMatchesDate && buoy && profile.requiresSwellCheck) {
-    return runSafetyFromBuoy(buoy, profile, pointChecks);
+    return runSafetyFromBuoy(buoy, profile, pointChecks, exposure);
   }
 
   // NWS zone forecast prose (CWF text product): primary path for future days
@@ -161,7 +208,7 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
   if (data.nwsZone) {
     const match = findNwsPeriodForDate(data.nwsZone, date);
     if (match) {
-      return runSafetyFromNws(match.period.detailedForecast, date, profile, pointChecks);
+      return runSafetyFromNws(match.period.detailedForecast, date, profile, pointChecks, exposure);
     }
   }
 
@@ -191,7 +238,8 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
 function runSafetyFromBuoy(
   buoy: NdbcObservation,
   profile: LaunchProfile,
-  pointChecks: Check[]
+  pointChecks: Check[],
+  exposure: Exposure
 ): SafetyOutput {
   const spit = spitAdvisory(profile);
   const checks: Check[] = spit ? [spit, ...pointChecks] : [...pointChecks];
@@ -217,12 +265,14 @@ function runSafetyFromBuoy(
     });
   }
   if (profile.requiresSwellCheck && buoy.waveHtFt !== null) {
+    const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile, 'live-buoy');
     checks.push({
       layer: 'safety',
       name: 'Swell height',
       value: `${buoy.waveHtFt.toFixed(1)} ft`,
-      threshold: `≤ ${thresholds.swellHeightFt} ft`,
-      status: evalAbove(buoy.waveHtFt, thresholds.swellHeightFt)
+      threshold: `≤ ${lim.limitFt} ft`,
+      status: lim.status,
+      ...(lim.leeNote ? { note: lim.leeNote } : {})
     });
   }
   if (profile.requiresPeriodCheck && buoy.dominantPeriodSec !== null) {
@@ -285,7 +335,8 @@ function runSafetyFromNws(
   text: string,
   date: string,
   profile: LaunchProfile,
-  pointChecks: Check[]
+  pointChecks: Check[],
+  exposure: Exposure
 ): SafetyOutput {
   const p = parseMarineProse(text);
   const spit = spitAdvisory(profile);
@@ -312,13 +363,14 @@ function runSafetyFromNws(
     });
   }
   if (profile.requiresSwellCheck && p.seasFt !== undefined) {
+    const lim = resolveSwellLimit(p.seasFt, p.swellDirDeg, exposure, profile, 'forecast');
     checks.push({
       layer: 'safety',
       name: 'Swell height',
       value: `${p.seasFt} ft`,
-      threshold: `≤ ${thresholds.swellHeightFt} ft`,
-      status: evalAbove(p.seasFt, thresholds.swellHeightFt),
-      note: 'NWS Seas (combined sea state)'
+      threshold: `≤ ${lim.limitFt} ft`,
+      status: lim.status,
+      note: lim.leeNote ? `NWS Seas (combined sea state); ${lim.leeNote}` : 'NWS Seas (combined sea state)'
     });
   }
   if (profile.requiresPeriodCheck && p.swellPeriodSec !== undefined) {

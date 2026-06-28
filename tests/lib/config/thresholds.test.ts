@@ -5,7 +5,11 @@ describe('thresholds (matches reference/thresholds.md)', () => {
   it('sustained wind during trip ≤ 15 kt', () => { expect(thresholds.windSustainedTripKt).toBe(15); });
   it('sustained wind at launch ≤ 10 kt', () => { expect(thresholds.windSustainedLaunchKt).toBe(10); });
   it('wind gust ≤ 15 kt', () => { expect(thresholds.windGustKt).toBe(15); });
-  it('swell height ≤ 5 ft', () => { expect(thresholds.swellHeightFt).toBe(5); });
+  it('swell height ≤ 6 ft (open Pacific)', () => { expect(thresholds.swellHeightFt).toBe(6); });
+  it('swell height ≤ 7 ft in the Trinidad Head lee', () => { expect(thresholds.swellHeightLeeFt).toBe(7); });
+  it('NW lee shelter arc is 300–340° true', () => {
+    expect(thresholds.leeSwellArcDeg).toEqual([300, 340]);
+  });
   it('swell period ≥ 10 sec', () => { expect(thresholds.swellPeriodSec).toBe(10); });
   it('wind/swell direction alignment within 45°', () => { expect(thresholds.windSwellAlignmentDeg).toBe(45); });
   it('visibility ≥ 1 nm', () => { expect(thresholds.visibilityNm).toBe(1); });

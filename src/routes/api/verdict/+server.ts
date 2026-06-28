@@ -46,6 +46,8 @@ export const GET: RequestHandler = async ({ url, platform }) => {
   if (!SPECIES.includes(speciesParam)) throw error(400, 'invalid species');
   const launchParam = (url.searchParams.get('launch') ?? 'trinidad') as LaunchIdParam;
   if (!LAUNCHES.includes(launchParam)) throw error(400, 'invalid launch');
+  const exposureParam = (url.searchParams.get('exposure') ?? 'open') as 'lee' | 'open';
+  if (exposureParam !== 'lee' && exposureParam !== 'open') throw error(400, 'invalid exposure');
   const days = Math.max(1, Math.min(7, Number(url.searchParams.get('days') ?? '7')));
   const bypass = url.searchParams.get('refresh') === 'true';
 
@@ -110,7 +112,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
   };
 
   const body = await orchestrateVerdict({
-    species: speciesParam, launch: launchParam, days, today: todayInPacific(), fetchers
+    species: speciesParam, launch: launchParam, exposure: exposureParam, days, today: todayInPacific(), fetchers
   });
   return json(body);
 };

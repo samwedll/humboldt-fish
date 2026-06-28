@@ -23,6 +23,7 @@ export type LayerStatus = 'pass' | 'warn' | 'fail' | 'incomplete';
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'unknown';
 export type LayerName = 'legal' | 'safety' | 'quality' | 'logistics';
 export type WindowState = 'past' | 'active' | 'upcoming';
+export type Exposure = 'lee' | 'open';
 
 export interface LayerResult {
   status: LayerStatus;
