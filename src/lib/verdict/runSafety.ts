@@ -18,6 +18,7 @@ export interface SafetyInput {
   today?: string;   // YYYY-MM-DD Pacific — today, used to gate "live buoy required" rule.
                     // Defaults to a sentinel that never matches a real date so the gate is opt-in.
   launch: LaunchId;
+  exposure?: Exposure;
   data: FetchedData;
 }
 export interface SafetyOutput {
@@ -154,7 +155,7 @@ function pointWindChecks(
   ];
 }
 
-export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyInput): SafetyOutput {
+export function runSafety({ date, today = '0000-00-00', launch, exposure = 'open', data }: SafetyInput): SafetyOutput {
   const profile = getLaunch(launch);
   const buoy = data.ndbc46244;
   const buoyMatchesDate = buoy && ndbcDatePacific(buoy.observedAt) === date;
@@ -191,7 +192,7 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
   // through to the NWS prose path, which incorporates point-forecast wind
   // when available and zone-forecast prose when it isn't.
   if (buoyMatchesDate && buoy && profile.requiresSwellCheck) {
-    return runSafetyFromBuoy(buoy, profile, pointChecks);
+    return runSafetyFromBuoy(buoy, profile, pointChecks, exposure);
   }
 
   // NWS zone forecast prose (CWF text product): primary path for future days
@@ -200,7 +201,7 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
   if (data.nwsZone) {
     const match = findNwsPeriodForDate(data.nwsZone, date);
     if (match) {
-      return runSafetyFromNws(match.period.detailedForecast, date, profile, pointChecks);
+      return runSafetyFromNws(match.period.detailedForecast, date, profile, pointChecks, exposure);
     }
   }
 
@@ -230,7 +231,8 @@ export function runSafety({ date, today = '0000-00-00', launch, data }: SafetyIn
 function runSafetyFromBuoy(
   buoy: NdbcObservation,
   profile: LaunchProfile,
-  pointChecks: Check[]
+  pointChecks: Check[],
+  exposure: Exposure
 ): SafetyOutput {
   const spit = spitAdvisory(profile);
   const checks: Check[] = spit ? [spit, ...pointChecks] : [...pointChecks];
@@ -256,12 +258,14 @@ function runSafetyFromBuoy(
     });
   }
   if (profile.requiresSwellCheck && buoy.waveHtFt !== null) {
+    const lim = resolveSwellLimit(buoy.waveHtFt, buoy.meanWaveDirDeg, exposure, profile);
     checks.push({
       layer: 'safety',
       name: 'Swell height',
       value: `${buoy.waveHtFt.toFixed(1)} ft`,
-      threshold: `≤ ${thresholds.swellHeightFt} ft`,
-      status: evalAbove(buoy.waveHtFt, thresholds.swellHeightFt)
+      threshold: `≤ ${lim.limitFt} ft`,
+      status: lim.status,
+      ...(lim.leeNote ? { note: lim.leeNote } : {})
     });
   }
   if (profile.requiresPeriodCheck && buoy.dominantPeriodSec !== null) {
@@ -324,7 +328,8 @@ function runSafetyFromNws(
   text: string,
   date: string,
   profile: LaunchProfile,
-  pointChecks: Check[]
+  pointChecks: Check[],
+  exposure: Exposure
 ): SafetyOutput {
   const p = parseMarineProse(text);
   const spit = spitAdvisory(profile);
@@ -351,13 +356,14 @@ function runSafetyFromNws(
     });
   }
   if (profile.requiresSwellCheck && p.seasFt !== undefined) {
+    const lim = resolveSwellLimit(p.seasFt, p.swellDirDeg, exposure, profile);
     checks.push({
       layer: 'safety',
       name: 'Swell height',
       value: `${p.seasFt} ft`,
-      threshold: `≤ ${thresholds.swellHeightFt} ft`,
-      status: evalAbove(p.seasFt, thresholds.swellHeightFt),
-      note: 'NWS Seas (combined sea state)'
+      threshold: `≤ ${lim.limitFt} ft`,
+      status: lim.status,
+      note: lim.leeNote ? `NWS Seas (combined sea state); ${lim.leeNote}` : 'NWS Seas (combined sea state)'
     });
   }
   if (profile.requiresPeriodCheck && p.swellPeriodSec !== undefined) {

@@ -571,3 +571,33 @@ describe('runSafety — Trinidad-today live-buoy gate', () => {
     expect(r.result.status).toBe('pass');
   });
 });
+
+describe('runSafety — exposure threading (buoy path)', () => {
+  function buoyAt(waveHtFt: number, meanWaveDirDeg: number) {
+    return calmBuoyData({
+      ndbc46244: {
+        observedAt: '2026-05-17T14:00:00Z',
+        windKt: 6, gustKt: 8, windDirDeg: meanWaveDirDeg,
+        waveHtFt, dominantPeriodSec: 12, meanWaveDirDeg, waterTempF: 52
+      }
+    });
+  }
+
+  it('6.5 ft NW swell: open → fail, lee → not fail', () => {
+    const open = runSafety({ date: '2026-05-17', launch: 'trinidad', data: buoyAt(6.5, 320) });
+    expect(open.checks.find((c) => c.name === 'Swell height')?.status).toBe('fail');
+
+    const lee = runSafety({ date: '2026-05-17', launch: 'trinidad', exposure: 'lee', data: buoyAt(6.5, 320) });
+    expect(lee.checks.find((c) => c.name === 'Swell height')?.status).not.toBe('fail');
+  });
+
+  it('6.5 ft W swell (270°) with lee → still fail (direction gate)', () => {
+    const lee = runSafety({ date: '2026-05-17', launch: 'trinidad', exposure: 'lee', data: buoyAt(6.5, 270) });
+    expect(lee.checks.find((c) => c.name === 'Swell height')?.status).toBe('fail');
+  });
+
+  it('lee Swell-height check reports the resolved limit in its threshold', () => {
+    const lee = runSafety({ date: '2026-05-17', launch: 'trinidad', exposure: 'lee', data: buoyAt(6.5, 320) });
+    expect(lee.checks.find((c) => c.name === 'Swell height')?.threshold).toBe('≤ 7 ft');
+  });
+});
