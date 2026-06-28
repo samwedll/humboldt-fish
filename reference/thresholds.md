@@ -13,7 +13,8 @@
 | **Sustained wind at launch time** | ≤ 10 kt | NOAA forecast or buoy reading at hour of launch |
 | **Sustained wind during trip window** | ≤ 15 kt | Forecast for full duration on the water |
 | **Wind gusts** | ≤ 15 kt | Gust factor matters more than sustained — 10G20 days are deceiving |
-| **Swell height** | ≤ 5 ft | Significant wave height from buoy or forecast |
+| **Swell height (open Pacific)** | ≤ 6 ft | Significant wave height from buoy or forecast. Raised from 5 ft June 2026 after early-season calibration. |
+| **Swell height (Trinidad Head lee)** | ≤ 7 ft | Only when swell is from the NW (300–340° true) — the arc the Head actually blocks. On W/S swell the lee gives nothing, so this reverts to 6 ft. Period (≥10 s) and wind/swell alignment still apply unchanged. |
 | **Swell period** | ≥ 10 sec | Short-period swell breaks earlier and steeper |
 | **Wind direction vs swell direction** | Aligned within 45° | Opposing wind/swell creates dangerous chop |
 | **USCG Humboldt Bar advisory** | No restriction | Any "restricted" or "closed" status = no-go for kayak |
@@ -78,8 +79,8 @@ Do not upgrade:
 
 ## Notes / Personal Adjustments
 
-(Add notes here as you learn what works and what doesn't. E.g., "10 kt forecast usually reads as 12 actual at 11am" or "Trinidad protected up to 7 ft swell.")
+(Add notes here as you learn what works and what doesn't. E.g., "10 kt forecast usually reads as 12 actual at 11am".)
 
 - **No Humboldt Bay jetty crossings, ever.** the user has crossed the bar repeatedly in powerboats and considers it too dangerous for a kayak regardless of conditions or future skill. Open-ocean fishing happens out of Trinidad only. (Added May 2026.)
--
+- **Trinidad Head lee (added June 2026).** Behind the Head, swell tolerance rises to 7 ft — but only when the swell is actually from the NW (300–340° true). The Head shelters NW weather and does nothing in W/S swell, so the bonus is direction-gated and fails closed (reverts to 6 ft) whenever swell direction is unknown. Period and alignment gates are unchanged. Selected per-trip via the "inside the lee / open Pacific" toggle.
 -
